@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, JSX } from 'react'
+import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react'
 import { drawImageDataToCanvas } from '../lib/canvasUtils'
 
 interface ImageCanvasProps {
   readonly imageData: ImageData | null
+  readonly isColorPickerActive?: boolean
+  readonly onCanvasClick?: (event: MouseEvent, canvas: HTMLCanvasElement) => void
 }
 
 interface CanvasDisplaySize {
@@ -13,7 +15,11 @@ interface CanvasDisplaySize {
 
 const CANVAS_SAFE_GAP_PX = 72
 
-export function ImageCanvas({ imageData }: ImageCanvasProps): JSX.Element {
+export function ImageCanvas({
+  imageData,
+  isColorPickerActive = false,
+  onCanvasClick,
+}: ImageCanvasProps): JSX.Element {
   const shellRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [displaySize, setDisplaySize] = useState<CanvasDisplaySize | null>(null)
@@ -73,13 +79,27 @@ export function ImageCanvas({ imageData }: ImageCanvasProps): JSX.Element {
           height: `${displaySize.height}px`,
         }
 
+  function handleCanvasClick(event: ReactMouseEvent<HTMLCanvasElement>): void {
+    if (onCanvasClick === undefined) {
+      return
+    }
+
+    onCanvasClick(event.nativeEvent, event.currentTarget)
+  }
+
   return (
     <div className="canvas-shell" ref={shellRef}>
       {imageData === null ? (
         <div className="canvas-placeholder">Open PNG, JPG/JPEG or GB7 image</div>
       ) : null}
       <canvas
-        className={imageData === null ? 'image-canvas image-canvas--empty' : 'image-canvas'}
+        className={[
+          imageData === null ? 'image-canvas image-canvas--empty' : 'image-canvas',
+          isColorPickerActive ? 'image-canvas--picker-active' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        onClick={handleCanvasClick}
         ref={canvasRef}
         style={canvasStyle}
       />

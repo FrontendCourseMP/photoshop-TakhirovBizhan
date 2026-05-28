@@ -1,9 +1,21 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import type {
   EditableImage,
   FileProcessingError,
 } from "../../entities/image/types";
+import { getCanvasImageCoordinates } from "../../features/color-picker/lib/canvasCoordinates";
+import { pickPixelColor } from "../../features/color-picker/lib/pickPixelColor";
+import { ColorPickerInfo } from "../../features/color-picker/ui/ColorPickerInfo";
+import { Toolbar } from "../../features/color-picker/ui/Toolbar";
+import type {
+  ColorPickerResult,
+  ImageCoordinates,
+} from "../../features/color-picker/types";
+import { applyChannelsToImageData } from "../../features/image-channels/lib/imageChannels";
+import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/channelState";
+import type { ChannelsState } from "../../features/image-channels/types";
+import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
 import { ImageDownloadPanel } from "../../features/image-download/ui/ImageDownloadPanel";
 import { ImageStatusBar } from "../../features/image-status/ui/ImageStatusBar";
 import { ImageUploadPanel } from "../../features/image-upload/ui/ImageUploadPanel";
@@ -12,17 +24,40 @@ import "./ImageEditorPage.css";
 
 export function ImageEditorPage(): JSX.Element {
   const [image, setImage] = useState<EditableImage | null>(null);
+  const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS_STATE);
+  const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
+  const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
   const [error, setError] = useState<FileProcessingError | null>(null);
 
-  // Page-слой только связывает features между собой и не содержит алгоритмов обработки изображения.
+  // Page-слой связывает features и не содержит алгоритмов обработки пикселей.
   function handleImageLoaded(nextImage: EditableImage): void {
     setImage(nextImage);
+    setChannels(DEFAULT_CHANNELS_STATE);
+    setColorPickerResult(null);
     setError(null);
   }
 
   function handleError(nextError: FileProcessingError): void {
     setError(nextError);
   }
+
+  function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
+    if (!isColorPickerActive || image === null) {
+      return;
+    }
+
+    const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(event, canvas);
+
+    if (coordinates === null) {
+      return;
+    }
+
+    setColorPickerResult(pickPixelColor(image.imageData, coordinates));
+  }
+
+  const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
+    return image === null ? null : applyChannelsToImageData(image.imageData, channels);
+  }, [channels, image]);
 
   return (
     <main className="image-editor">
@@ -31,6 +66,12 @@ export function ImageEditorPage(): JSX.Element {
           <h1>Photoshop</h1>
         </div>
         <div className="toolbar-actions">
+          <Toolbar
+            isColorPickerActive={isColorPickerActive}
+            onColorPickerToggle={() => {
+              setIsColorPickerActive((currentValue: boolean) => !currentValue);
+            }}
+          />
           <ImageUploadPanel
             onImageLoaded={handleImageLoaded}
             onError={handleError}
@@ -47,7 +88,21 @@ export function ImageEditorPage(): JSX.Element {
       )}
 
       <section className="editor-workspace" aria-label="Image workspace">
-        <ImageCanvas imageData={image?.imageData ?? null} />
+        <div className="workspace-layout">
+          <ImageCanvas
+            imageData={displayedImageData}
+            isColorPickerActive={isColorPickerActive}
+            onCanvasClick={handleCanvasPick}
+          />
+          <div className="inspector-panel">
+            <ChannelsPanel
+              channels={channels}
+              onChannelsChange={setChannels}
+              sourceImageData={image?.imageData ?? null}
+            />
+            <ColorPickerInfo result={colorPickerResult} />
+          </div>
+        </div>
       </section>
 
       <ImageStatusBar metadata={image?.metadata ?? null} />
