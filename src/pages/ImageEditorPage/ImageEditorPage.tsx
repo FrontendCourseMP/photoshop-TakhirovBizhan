@@ -16,6 +16,7 @@ import { applyChannelsToImageData } from "../../features/image-channels/lib/imag
 import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/channelState";
 import type { ChannelsState } from "../../features/image-channels/types";
 import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
+import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
 import { ImageDownloadPanel } from "../../features/image-download/ui/ImageDownloadPanel";
 import { ImageStatusBar } from "../../features/image-status/ui/ImageStatusBar";
 import { ImageUploadPanel } from "../../features/image-upload/ui/ImageUploadPanel";
@@ -25,6 +26,8 @@ import "./ImageEditorPage.css";
 export function ImageEditorPage(): JSX.Element {
   const [image, setImage] = useState<EditableImage | null>(null);
   const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS_STATE);
+  const [levelsPreviewImageData, setLevelsPreviewImageData] = useState<ImageData | null>(null);
+  const [isLevelsDialogOpen, setIsLevelsDialogOpen] = useState<boolean>(false);
   const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
   const [error, setError] = useState<FileProcessingError | null>(null);
@@ -33,6 +36,8 @@ export function ImageEditorPage(): JSX.Element {
   function handleImageLoaded(nextImage: EditableImage): void {
     setImage(nextImage);
     setChannels(DEFAULT_CHANNELS_STATE);
+    setLevelsPreviewImageData(null);
+    setIsLevelsDialogOpen(false);
     setColorPickerResult(null);
     setError(null);
   }
@@ -55,9 +60,34 @@ export function ImageEditorPage(): JSX.Element {
     setColorPickerResult(pickPixelColor(image.imageData, coordinates));
   }
 
+  function handleLevelsCancel(): void {
+    setLevelsPreviewImageData(null);
+    setIsLevelsDialogOpen(false);
+  }
+
+  function handleLevelsApply(nextImageData: ImageData): void {
+    if (image === null) {
+      return;
+    }
+
+    setImage({
+      ...image,
+      imageData: nextImageData,
+    });
+    setLevelsPreviewImageData(null);
+    setIsLevelsDialogOpen(false);
+    setColorPickerResult(null);
+  }
+
   const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
-    return image === null ? null : applyChannelsToImageData(image.imageData, channels);
-  }, [channels, image]);
+    if (image === null) {
+      return null;
+    }
+
+    const baseImageData: ImageData = levelsPreviewImageData ?? image.imageData;
+
+    return applyChannelsToImageData(baseImageData, channels);
+  }, [channels, image, levelsPreviewImageData]);
 
   return (
     <main className="image-editor">
@@ -67,9 +97,13 @@ export function ImageEditorPage(): JSX.Element {
         </div>
         <div className="toolbar-actions">
           <Toolbar
+            canOpenLevels={image !== null}
             isColorPickerActive={isColorPickerActive}
             onColorPickerToggle={() => {
               setIsColorPickerActive((currentValue: boolean) => !currentValue);
+            }}
+            onLevelsOpen={() => {
+              setIsLevelsDialogOpen(true);
             }}
           />
           <ImageUploadPanel
@@ -106,6 +140,15 @@ export function ImageEditorPage(): JSX.Element {
       </section>
 
       <ImageStatusBar metadata={image?.metadata ?? null} />
+
+      {image !== null && isLevelsDialogOpen ? (
+        <LevelsDialog
+          sourceImageData={image.imageData}
+          onApply={handleLevelsApply}
+          onCancel={handleLevelsCancel}
+          onPreviewChange={setLevelsPreviewImageData}
+        />
+      ) : null}
     </main>
   );
 }

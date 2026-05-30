@@ -25,7 +25,7 @@ export async function loadImageFile(file: File): Promise<ImageLoadResult> {
   }
 
   try {
-    // Feature загрузки выбирает инфраструктурный путь: браузерный декодер для PNG/JPEG или собственный GB7 codec.
+    // Модуль загрузки выбирает инфраструктурный путь: браузерный декодер для PNG/JPEG или собственный GB7-кодек.
     const image: EditableImage =
       format === 'gb7' ? await loadGB7Image(file) : await loadBrowserImage(file, format)
 
@@ -57,7 +57,7 @@ async function loadGB7Image(file: File): Promise<EditableImage> {
 
 async function loadBrowserImage(file: File, format: Exclude<ImageFileFormat, 'gb7'>): Promise<EditableImage> {
   const imageData: ImageData = await readBrowserImageData(file)
-  // Для браузерных форматов глубина фиксируется на уровне представления: JPEG без alpha, PNG с alpha.
+  // Для браузерных форматов глубина фиксируется на уровне представления: JPEG без альфа-канала, PNG с альфа-каналом.
   const metadata: ImageMetadata = {
     width: imageData.width,
     height: imageData.height,
