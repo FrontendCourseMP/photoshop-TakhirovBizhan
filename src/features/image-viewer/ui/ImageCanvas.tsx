@@ -1,28 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react'
 import { drawImageDataToCanvas } from '../lib/canvasUtils'
+import type { ImageSize } from '../../../shared/types/imageSize'
 
 interface ImageCanvasProps {
   readonly imageData: ImageData | null
+  readonly displayScalePercent: number
   readonly isColorPickerActive?: boolean
   readonly onCanvasClick?: (event: MouseEvent, canvas: HTMLCanvasElement) => void
+  readonly onViewportSizeChange?: (size: ImageSize) => void
 }
-
-interface CanvasDisplaySize {
-  readonly width: number
-  readonly height: number
-}
-
-const CANVAS_SAFE_GAP_PX = 72
 
 export function ImageCanvas({
   imageData,
+  displayScalePercent,
   isColorPickerActive = false,
   onCanvasClick,
+  onViewportSizeChange,
 }: ImageCanvasProps): JSX.Element {
   const shellRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [displaySize, setDisplaySize] = useState<CanvasDisplaySize | null>(null)
 
   useEffect((): void => {
     const canvas: HTMLCanvasElement | null = canvasRef.current
@@ -37,46 +34,36 @@ export function ImageCanvas({
   useEffect((): (() => void) | void => {
     const shell: HTMLDivElement | null = shellRef.current
 
-    if (shell === null || imageData === null) {
-      setDisplaySize(null)
+    if (shell === null || onViewportSizeChange === undefined) {
       return undefined
     }
 
     const currentShell: HTMLDivElement = shell
-    const currentImageData: ImageData = imageData
+    const emitSize: (size: ImageSize) => void = onViewportSizeChange
 
-    function updateDisplaySize(): void {
-      const availableWidth: number = Math.max(currentShell.clientWidth - CANVAS_SAFE_GAP_PX, 1)
-      const availableHeight: number = Math.max(currentShell.clientHeight - CANVAS_SAFE_GAP_PX, 1)
-      // Реальный canvas остается в исходном разрешении, а CSS-размер уменьшается под viewport.
-      const scale: number = Math.min(
-        availableWidth / currentImageData.width,
-        availableHeight / currentImageData.height,
-        1,
-      )
-
-      setDisplaySize({
-        width: Math.max(Math.floor(currentImageData.width * scale), 1),
-        height: Math.max(Math.floor(currentImageData.height * scale), 1),
+    function emitViewportSize(): void {
+      emitSize({
+        width: currentShell.clientWidth,
+        height: currentShell.clientHeight,
       })
     }
 
-    updateDisplaySize()
+    emitViewportSize()
 
-    const resizeObserver: ResizeObserver = new ResizeObserver(updateDisplaySize)
+    const resizeObserver: ResizeObserver = new ResizeObserver(emitViewportSize)
     resizeObserver.observe(currentShell)
 
     return (): void => {
       resizeObserver.disconnect()
     }
-  }, [imageData])
+  }, [onViewportSizeChange])
 
   const canvasStyle: CSSProperties | undefined =
-    displaySize === null
+    imageData === null
       ? undefined
       : {
-          width: `${displaySize.width}px`,
-          height: `${displaySize.height}px`,
+          width: `${Math.max(Math.round((imageData.width * displayScalePercent) / 100), 1)}px`,
+          height: `${Math.max(Math.round((imageData.height * displayScalePercent) / 100), 1)}px`,
         }
 
   function handleCanvasClick(event: ReactMouseEvent<HTMLCanvasElement>): void {

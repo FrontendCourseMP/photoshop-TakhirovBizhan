@@ -17,27 +17,42 @@ import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/chan
 import type { ChannelsState } from "../../features/image-channels/types";
 import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
 import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
+import { ResizeImageDialog } from "../../features/image-resize/ui/ResizeImageDialog";
+import { calculateInitialDisplayScale, clampScalePercent } from "../../features/image-scale/lib/displayScale";
+import { INITIAL_SCALE_PADDING_PX } from "../../features/image-scale/model/displayScaleConstants";
+import { DisplayScaleControl } from "../../features/image-scale/ui/DisplayScaleControl";
 import { ImageDownloadPanel } from "../../features/image-download/ui/ImageDownloadPanel";
 import { ImageStatusBar } from "../../features/image-status/ui/ImageStatusBar";
 import { ImageUploadPanel } from "../../features/image-upload/ui/ImageUploadPanel";
 import { ImageCanvas } from "../../features/image-viewer/ui/ImageCanvas";
+import type { ImageSize } from "../../shared/types/imageSize";
 import "./ImageEditorPage.css";
 
 export function ImageEditorPage(): JSX.Element {
   const [image, setImage] = useState<EditableImage | null>(null);
   const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS_STATE);
+  const [displayScalePercent, setDisplayScalePercent] = useState<number>(100);
+  const [canvasViewportSize, setCanvasViewportSize] = useState<ImageSize | null>(null);
   const [levelsPreviewImageData, setLevelsPreviewImageData] = useState<ImageData | null>(null);
   const [isLevelsDialogOpen, setIsLevelsDialogOpen] = useState<boolean>(false);
+  const [isResizeDialogOpen, setIsResizeDialogOpen] = useState<boolean>(false);
   const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
   const [error, setError] = useState<FileProcessingError | null>(null);
 
   // Page-слой связывает features и не содержит алгоритмов обработки пикселей.
   function handleImageLoaded(nextImage: EditableImage): void {
+    const initialScalePercent: number =
+      canvasViewportSize === null
+        ? 100
+        : calculateInitialDisplayScale(nextImage.imageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX);
+
     setImage(nextImage);
     setChannels(DEFAULT_CHANNELS_STATE);
+    setDisplayScalePercent(initialScalePercent);
     setLevelsPreviewImageData(null);
     setIsLevelsDialogOpen(false);
+    setIsResizeDialogOpen(false);
     setColorPickerResult(null);
     setError(null);
   }
@@ -79,6 +94,30 @@ export function ImageEditorPage(): JSX.Element {
     setColorPickerResult(null);
   }
 
+  function handleResizeApply(nextImageData: ImageData): void {
+    if (image === null) {
+      return;
+    }
+
+    const nextScalePercent: number =
+      canvasViewportSize === null
+        ? displayScalePercent
+        : calculateInitialDisplayScale(nextImageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX);
+
+    setImage({
+      ...image,
+      imageData: nextImageData,
+      metadata: {
+        ...image.metadata,
+        width: nextImageData.width,
+        height: nextImageData.height,
+      },
+    });
+    setDisplayScalePercent(nextScalePercent);
+    setIsResizeDialogOpen(false);
+    setColorPickerResult(null);
+  }
+
   const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
     if (image === null) {
       return null;
@@ -98,12 +137,23 @@ export function ImageEditorPage(): JSX.Element {
         <div className="toolbar-actions">
           <Toolbar
             canOpenLevels={image !== null}
+            canOpenResize={image !== null}
             isColorPickerActive={isColorPickerActive}
             onColorPickerToggle={() => {
               setIsColorPickerActive((currentValue: boolean) => !currentValue);
             }}
             onLevelsOpen={() => {
               setIsLevelsDialogOpen(true);
+            }}
+            onResizeOpen={() => {
+              setIsResizeDialogOpen(true);
+            }}
+          />
+          <DisplayScaleControl
+            disabled={image === null}
+            scalePercent={displayScalePercent}
+            onScaleChange={(nextScalePercent: number) => {
+              setDisplayScalePercent(clampScalePercent(nextScalePercent));
             }}
           />
           <ImageUploadPanel
@@ -124,9 +174,11 @@ export function ImageEditorPage(): JSX.Element {
       <section className="editor-workspace" aria-label="Image workspace">
         <div className="workspace-layout">
           <ImageCanvas
+            displayScalePercent={displayScalePercent}
             imageData={displayedImageData}
             isColorPickerActive={isColorPickerActive}
             onCanvasClick={handleCanvasPick}
+            onViewportSizeChange={setCanvasViewportSize}
           />
           <div className="inspector-panel">
             <ChannelsPanel
@@ -139,7 +191,7 @@ export function ImageEditorPage(): JSX.Element {
         </div>
       </section>
 
-      <ImageStatusBar metadata={image?.metadata ?? null} />
+      <ImageStatusBar displayScalePercent={displayScalePercent} metadata={image?.metadata ?? null} />
 
       {image !== null && isLevelsDialogOpen ? (
         <LevelsDialog
@@ -147,6 +199,17 @@ export function ImageEditorPage(): JSX.Element {
           onApply={handleLevelsApply}
           onCancel={handleLevelsCancel}
           onPreviewChange={setLevelsPreviewImageData}
+        />
+      ) : null}
+
+      {image !== null ? (
+        <ResizeImageDialog
+          open={isResizeDialogOpen}
+          sourceImageData={image.imageData}
+          onApply={handleResizeApply}
+          onCancel={() => {
+            setIsResizeDialogOpen(false);
+          }}
         />
       ) : null}
     </main>

@@ -105,6 +105,24 @@
   gap: 8px;
 }
 
+.display-scale-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #46565e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.display-scale-control select {
+  min-height: 34px;
+  min-width: 86px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  color: #172126;
+  background: #ffffff;
+}
+
 .tool-button--active {
   border-color: #237a72;
   color: #0f4f49;
@@ -114,7 +132,7 @@
 .file-picker {
   position: relative;
   display: inline-flex;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .file-picker__input {
@@ -581,10 +599,169 @@
   background: #e7f4f1;
 }
 
+.modal-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #9eadb4;
+  border-radius: 8px;
+  color: #172126;
+  background: #f8fafb;
+  box-shadow: 0 24px 70px rgba(23, 33, 38, 0.38);
+}
+
+.modal-dialog::backdrop {
+  background: rgba(23, 33, 38, 0.42);
+}
+
+.modal-dialog__content {
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 34px);
+  padding: 16px;
+  overflow: auto;
+}
+
+.modal-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-dialog__header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.modal-dialog__header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172126;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.resize-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.resize-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.resize-stat-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #d3dde2;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.resize-stat-item span {
+  color: #65747b;
+  font-size: 11px;
+}
+
+.resize-stat-item strong {
+  overflow: hidden;
+  color: #172126;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resize-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.resize-field {
+  display: grid;
+  gap: 6px;
+  color: #314149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.resize-field input,
+.resize-field select {
+  min-height: 34px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  color: #172126;
+  background: #ffffff;
+}
+
+.resize-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #314149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.resize-tooltip {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 3px solid #237a72;
+  color: #4f5e65;
+  background: #edf6f4;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.resize-error {
+  margin: 0;
+  color: #8a2f2f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.resize-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.resize-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172126;
+  font-weight: 700;
+}
+
+.resize-actions button:hover:not(:disabled) {
+  border-color: #237a72;
+  background: #e7f4f1;
+}
+
+.resize-actions button:disabled {
+  color: #8a969c;
+  background: #eef2f4;
+}
+
 .status-bar {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  grid-template-columns: repeat(6, minmax(100px, 1fr));
   margin-top: auto;
   border-top: 1px solid #c7d2d8;
   background: #172126;
@@ -632,7 +809,8 @@
   .toolbar-actions,
   .toolbar-section,
   .button-group,
-  .tool-panel {
+  .tool-panel,
+  .display-scale-control {
     width: 100%;
   }
 
@@ -652,13 +830,14 @@
 
   .toolbar-button,
   .tool-button,
+  .display-scale-control select,
   .file-picker,
   .file-picker__label {
     width: 100%;
   }
 
   .status-bar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .workspace-layout {
@@ -718,5 +897,14 @@
   .levels-dialog__actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .resize-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resize-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
