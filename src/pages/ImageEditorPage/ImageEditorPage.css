@@ -132,7 +132,7 @@
 .file-picker {
   position: relative;
   display: inline-flex;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .file-picker__input {
@@ -758,6 +758,106 @@
   background: #eef2f4;
 }
 
+.filters-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.filter-field {
+  display: grid;
+  gap: 6px;
+  color: #314149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-field input,
+.filter-field select {
+  min-height: 34px;
+  min-width: 0;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  color: #172126;
+  background: #ffffff;
+}
+
+.kernel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kernel-grid input {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  color: #172126;
+  background: #ffffff;
+  text-align: center;
+}
+
+.filter-channel-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #c6d0d5;
+  border-radius: 6px;
+}
+
+.filter-channel-group legend {
+  padding: 0 5px;
+  color: #65747b;
+  font-size: 11px;
+}
+
+.filter-channel-group label,
+.filter-preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #314149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-processing {
+  padding: 8px 10px;
+  border-left: 3px solid #237a72;
+  color: #4f5e65;
+  background: #edf6f4;
+  font-size: 12px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.filter-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #aebbc2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172126;
+  font-weight: 700;
+}
+
+.filter-actions button:hover {
+  border-color: #237a72;
+  background: #e7f4f1;
+}
+
 .status-bar {
   display: grid;
   flex: 0 0 auto;
@@ -906,5 +1006,15 @@
   .resize-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters-grid,
+  .filter-channel-group {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

@@ -4,18 +4,22 @@ interface ToolbarProps {
   readonly isColorPickerActive: boolean
   readonly canOpenLevels: boolean
   readonly canOpenResize: boolean
+  readonly canOpenFilters: boolean
   readonly onColorPickerToggle: () => void
   readonly onLevelsOpen: () => void
   readonly onResizeOpen: () => void
+  readonly onFiltersOpen: () => void
 }
 
 export function Toolbar({
   isColorPickerActive,
   canOpenLevels,
   canOpenResize,
+  canOpenFilters,
   onColorPickerToggle,
   onLevelsOpen,
   onResizeOpen,
+  onFiltersOpen,
 }: ToolbarProps): JSX.Element {
   return (
     <section className="tool-panel" aria-label="Tools">
@@ -32,6 +36,9 @@ export function Toolbar({
       </button>
       <button className="tool-button" type="button" disabled={!canOpenResize} onClick={onResizeOpen}>
         Resize
+      </button>
+      <button className="tool-button" type="button" disabled={!canOpenFilters} onClick={onFiltersOpen}>
+        Filters
       </button>
     </section>
   )

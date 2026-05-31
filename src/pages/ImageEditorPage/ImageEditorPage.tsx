@@ -16,6 +16,7 @@ import { applyChannelsToImageData } from "../../features/image-channels/lib/imag
 import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/channelState";
 import type { ChannelsState } from "../../features/image-channels/types";
 import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
+import { FiltersDialog } from "../../features/image-filters/ui/FiltersDialog";
 import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
 import { ResizeImageDialog } from "../../features/image-resize/ui/ResizeImageDialog";
 import { calculateInitialDisplayScale, clampScalePercent } from "../../features/image-scale/lib/displayScale";
@@ -34,8 +35,10 @@ export function ImageEditorPage(): JSX.Element {
   const [displayScalePercent, setDisplayScalePercent] = useState<number>(100);
   const [canvasViewportSize, setCanvasViewportSize] = useState<ImageSize | null>(null);
   const [levelsPreviewImageData, setLevelsPreviewImageData] = useState<ImageData | null>(null);
+  const [filterPreviewImageData, setFilterPreviewImageData] = useState<ImageData | null>(null);
   const [isLevelsDialogOpen, setIsLevelsDialogOpen] = useState<boolean>(false);
   const [isResizeDialogOpen, setIsResizeDialogOpen] = useState<boolean>(false);
+  const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState<boolean>(false);
   const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
   const [error, setError] = useState<FileProcessingError | null>(null);
@@ -51,8 +54,10 @@ export function ImageEditorPage(): JSX.Element {
     setChannels(DEFAULT_CHANNELS_STATE);
     setDisplayScalePercent(initialScalePercent);
     setLevelsPreviewImageData(null);
+    setFilterPreviewImageData(null);
     setIsLevelsDialogOpen(false);
     setIsResizeDialogOpen(false);
+    setIsFiltersDialogOpen(false);
     setColorPickerResult(null);
     setError(null);
   }
@@ -118,15 +123,29 @@ export function ImageEditorPage(): JSX.Element {
     setColorPickerResult(null);
   }
 
+  function handleFiltersApply(nextImageData: ImageData): void {
+    if (image === null) {
+      return;
+    }
+
+    setImage({
+      ...image,
+      imageData: nextImageData,
+    });
+    setFilterPreviewImageData(null);
+    setIsFiltersDialogOpen(false);
+    setColorPickerResult(null);
+  }
+
   const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
     if (image === null) {
       return null;
     }
 
-    const baseImageData: ImageData = levelsPreviewImageData ?? image.imageData;
+    const baseImageData: ImageData = filterPreviewImageData ?? levelsPreviewImageData ?? image.imageData;
 
     return applyChannelsToImageData(baseImageData, channels);
-  }, [channels, image, levelsPreviewImageData]);
+  }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
 
   return (
     <main className="image-editor">
@@ -138,6 +157,7 @@ export function ImageEditorPage(): JSX.Element {
           <Toolbar
             canOpenLevels={image !== null}
             canOpenResize={image !== null}
+            canOpenFilters={image !== null}
             isColorPickerActive={isColorPickerActive}
             onColorPickerToggle={() => {
               setIsColorPickerActive((currentValue: boolean) => !currentValue);
@@ -147,6 +167,9 @@ export function ImageEditorPage(): JSX.Element {
             }}
             onResizeOpen={() => {
               setIsResizeDialogOpen(true);
+            }}
+            onFiltersOpen={() => {
+              setIsFiltersDialogOpen(true);
             }}
           />
           <DisplayScaleControl
@@ -210,6 +233,19 @@ export function ImageEditorPage(): JSX.Element {
           onCancel={() => {
             setIsResizeDialogOpen(false);
           }}
+        />
+      ) : null}
+
+      {image !== null ? (
+        <FiltersDialog
+          open={isFiltersDialogOpen}
+          sourceImageData={image.imageData}
+          onApply={handleFiltersApply}
+          onCancel={() => {
+            setFilterPreviewImageData(null);
+            setIsFiltersDialogOpen(false);
+          }}
+          onPreviewChange={setFilterPreviewImageData}
         />
       ) : null}
     </main>
