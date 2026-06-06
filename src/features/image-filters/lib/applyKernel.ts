@@ -13,6 +13,11 @@ const CHANNEL_TO_OFFSET: Readonly<Record<FilterChannel, number>> = {
  * Применяет свертку 3x3 к выбранным каналам, не меняя исходный ImageData.
  * Невыбранные каналы копируются напрямую, чтобы фильтр не ломал существующий alpha/RGB pipeline.
  */
+/**
+ * Основная точка применения convolution-фильтра.
+ * Функция работает только с новым выходным буфером: source.data остается неизменным,
+ * а выбранные пользователем каналы обрабатываются независимо от остальных.
+ */
 export function applyKernel3x3(source: ImageData, settings: FilterSettings): ImageData {
   const outputBuffer: ArrayBuffer = new ArrayBuffer(source.data.length)
   const outputData: Uint8ClampedArray<ArrayBuffer> = new Uint8ClampedArray(outputBuffer)
@@ -52,6 +57,8 @@ function calculateConvolvedChannel(
   let sum = 0
   let kernelIndex = 0
 
+  // Ядро 3x3 обходится вокруг текущего пикселя. Для координат за границами изображения
+  // используется выбранная strategy edge handling, чтобы результат сохранил исходные width/height.
   for (let kernelY = -1; kernelY <= 1; kernelY += 1) {
     for (let kernelX = -1; kernelX <= 1; kernelX += 1) {
       const pixel: PixelTuple = getPixelWithEdgeHandling(
@@ -72,6 +79,7 @@ function calculateConvolvedChannel(
 }
 
 function normalizeDivisor(divisor: number | undefined): number {
+  // divisor = 0 или нечисловое значение разрушило бы формулу свертки, поэтому безопасно заменяем его на 1.
   if (divisor === undefined || !Number.isFinite(divisor) || divisor === 0) {
     return 1
   }

@@ -26,6 +26,7 @@ export function drawHistogram(
 
   const width: number = canvas.width
   const height: number = canvas.height
+  // Log mode сжимает высокие пики, чтобы редкие значения не терялись рядом с доминирующими тонами.
   const values: readonly number[] = Array.from(histogram, (value: number): number =>
     mode === 'log' ? Math.log1p(value) : value,
   )
@@ -39,6 +40,7 @@ export function drawHistogram(
   context.strokeStyle = HISTOGRAM_COLOR.stroke
 
   for (let binIndex = 0; binIndex < histogram.length; binIndex += 1) {
+    // Даже одиночные значения рисуются высотой минимум 1px, иначе тонкие детали гистограммы пропадают.
     const normalizedHeight: number = values[binIndex] / maxValue
     const barHeight: number = Math.max(normalizedHeight * height, values[binIndex] > 0 ? 1 : 0)
     const x: number = binIndex * barWidth

@@ -15,6 +15,8 @@ export function getPixelWithEdgeHandling(
 ): PixelTuple {
   const isOutside: boolean = x < 0 || y < 0 || x >= width || y >= height
 
+  // Стратегии black/white подставляют синтетический пиксель за границей изображения.
+  // Это нужно, чтобы свертка у края имела полный набор соседей и не уменьшала размер результата.
   if (isOutside && strategy === 'black') {
     return BLACK_EDGE_PIXEL
   }

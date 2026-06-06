@@ -2,6 +2,8 @@ import type { FilterSettings, KernelPreset } from '../types'
 
 export const DEFAULT_FILTER_CHANNELS = ['red', 'green', 'blue'] as const
 
+// Presets описаны декларативно: UI может показывать список фильтров,
+// а lib применяет выбранный kernel без знания названия preset.
 export const FILTER_KERNEL_PRESETS: readonly KernelPreset[] = [
   {
     id: 'identity',
@@ -48,6 +50,8 @@ export const FILTER_KERNEL_PRESETS: readonly KernelPreset[] = [
 ]
 
 export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+  // Identity kernel выбран по умолчанию, чтобы открытие dialog не меняло изображение
+  // до явного выбора фильтра или ручного изменения матрицы.
   kernel: FILTER_KERNEL_PRESETS[0].kernel,
   selectedChannels: DEFAULT_FILTER_CHANNELS,
   edgeHandling: 'copy',

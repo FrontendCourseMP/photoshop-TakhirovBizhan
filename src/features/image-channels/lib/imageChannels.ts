@@ -20,6 +20,7 @@ export function applyChannelsToImageData(source: ImageData, channels: ChannelsSt
   const output: ImageData = createEmptyImageData(source.width, source.height)
   const onlyAlphaEnabled: boolean = channels.alpha && !channels.red && !channels.green && !channels.blue
 
+  // Каналы применяются к копии, чтобы оригинал оставался источником для пипетки, экспорта и следующих инструментов.
   for (let index = 0; index < source.data.length; index += 4) {
     const red: number = source.data[index]
     const green: number = source.data[index + 1]
@@ -27,6 +28,7 @@ export function applyChannelsToImageData(source: ImageData, channels: ChannelsSt
     const alpha: number = source.data[index + 3]
 
     if (onlyAlphaEnabled) {
+      // Если включен только Alpha, показываем его как маску, иначе прозрачное изображение было бы невидимым.
       output.data[index] = alpha
       output.data[index + 1] = alpha
       output.data[index + 2] = alpha
@@ -44,6 +46,7 @@ export function applyChannelsToImageData(source: ImageData, channels: ChannelsSt
 }
 
 export function createChannelPreviews(source: ImageData): readonly ChannelPreview[] {
+  // Превью строятся из исходного ImageData, а не из уже выключенных каналов на главном canvas.
   return PREVIEW_DESCRIPTORS.map((descriptor: PreviewDescriptor): ChannelPreview => {
     return {
       ...descriptor,
@@ -76,6 +79,7 @@ function writePreviewPixel(
   blue: number,
   alpha: number,
 ): void {
+  // Превью отдельных каналов переводится в grayscale, чтобы яркость отражала интенсивность конкретного канала.
   if (kind === 'red' || kind === 'green' || kind === 'blue' || kind === 'alpha' || kind === 'grayscale') {
     const intensity: number = getPreviewIntensity(kind, red, green, blue, alpha)
 

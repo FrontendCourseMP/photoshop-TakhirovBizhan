@@ -13,6 +13,7 @@ export function scheduleAsyncFilter(
     }
 
     // Обработка вынесена из input-события, чтобы быстрые изменения настроек не блокировали UI синхронно.
+    // Флаг cancelled не дает устаревшему preview перезаписать более свежий результат.
     const result: ImageData = applyKernel3x3(source, settings)
 
     if (!cancelled) {

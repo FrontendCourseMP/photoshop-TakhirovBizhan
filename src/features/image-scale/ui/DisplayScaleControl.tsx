@@ -13,6 +13,8 @@ export function DisplayScaleControl({
   onScaleChange,
 }: DisplayScaleControlProps): JSX.Element {
   function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
+    // Control отдает наружу числовой percent, а clamp выполняется page-слоем
+    // через общую scale utility, чтобы все источники scale проходили одну проверку.
     onScaleChange(Number(event.currentTarget.value))
   }
 

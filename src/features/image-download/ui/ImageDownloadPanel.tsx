@@ -14,10 +14,12 @@ export function ImageDownloadPanel({ image, onError }: ImageDownloadPanelProps):
   const [activeFormat, setActiveFormat] = useState<ImageFileFormat | null>(null)
 
   async function handleDownload(format: ImageFileFormat): Promise<void> {
+    // При отсутствии изображения кнопки disabled, но guard оставлен для безопасного вызова handler.
     if (image === null) {
       return
     }
 
+    // activeFormat блокирует параллельные экспорты и показывает пользователю текущий формат сохранения.
     setActiveFormat(format)
 
     try {
@@ -51,6 +53,8 @@ export function ImageDownloadPanel({ image, onError }: ImageDownloadPanelProps):
 }
 
 function normalizeError(cause: unknown): FileProcessingError {
+  // UI принимает только FileProcessingError, поэтому неизвестные исключения
+  // приводятся к единому отображаемому контракту.
   if (isFileProcessingError(cause)) {
     return cause
   }
@@ -63,6 +67,7 @@ function normalizeError(cause: unknown): FileProcessingError {
 }
 
 function isFileProcessingError(value: unknown): value is FileProcessingError {
+  // Narrowing по форме объекта позволяет обработать unknown без any.
   if (typeof value !== 'object' || value === null) {
     return false
   }

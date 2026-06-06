@@ -5,6 +5,7 @@ import type { ResizeSettings, ResizeStats, ResizeValidationResult } from '../typ
 export function validateResizeSettings(settings: ResizeSettings, sourceSize: ImageSize): ResizeValidationResult {
   const targetSize: ImageSize = getTargetSizeFromSettings(settings, sourceSize)
 
+  // Валидация выполняется до запуска тяжелого resize, чтобы Apply не создавал огромные или невалидные буферы.
   if (!isValidFiniteNumber(settings.width) || !isValidFiniteNumber(settings.height)) {
     return {
       ok: false,
@@ -33,6 +34,7 @@ export function validateResizeSettings(settings: ResizeSettings, sourceSize: Ima
 }
 
 export function getTargetSizeFromSettings(settings: ResizeSettings, sourceSize: ImageSize): ImageSize {
+  // Алгоритмы resize работают в пикселях, поэтому percent-режим сначала переводится в итоговый ImageSize.
   if (settings.inputMode === 'percent') {
     return {
       width: Math.max(Math.round((sourceSize.width * settings.width) / 100), 1),
@@ -53,6 +55,7 @@ export function calculateAspectRatioSize(
 ): ImageSize {
   const aspectRatio: number = sourceSize.width / sourceSize.height
 
+  // Пересчет идет от исходного aspect ratio, чтобы ошибки округления не копились при последовательном вводе.
   if (changedDimension === 'width') {
     return {
       width: Math.max(Math.round(value), 1),

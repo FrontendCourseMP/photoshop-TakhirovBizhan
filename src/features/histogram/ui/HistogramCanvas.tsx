@@ -12,6 +12,8 @@ export function HistogramCanvas({ histogram, mode }: HistogramCanvasProps): JSX.
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect((): void => {
+    // Histogram рисуется императивно в canvas, потому что 256 bars быстрее
+    // обновлять Canvas API, чем пересоздавать множество DOM-элементов.
     const canvas: HTMLCanvasElement | null = canvasRef.current
 
     if (canvas === null) {

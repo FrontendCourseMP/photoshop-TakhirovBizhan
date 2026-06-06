@@ -7,6 +7,8 @@ interface ImageStatusBarProps {
 }
 
 export function ImageStatusBar({ metadata, displayScalePercent }: ImageStatusBarProps): JSX.Element {
+  // Status bar показывает исходные metadata текущего изображения и display scale.
+  // Эти значения не зависят от временных preview, пока пользователь не нажмет Apply.
   const megapixels: string = metadata === null ? '-' : `${roundMegapixels(metadata.width * metadata.height)} MP`
 
   return (
@@ -22,6 +24,7 @@ export function ImageStatusBar({ metadata, displayScalePercent }: ImageStatusBar
 }
 
 function roundMegapixels(pixels: number): number {
+  // Округление до двух знаков делает строку стабильной и достаточно точной для status bar.
   return Math.round((pixels / 1_000_000) * 100) / 100
 }
 

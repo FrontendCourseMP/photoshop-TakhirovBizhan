@@ -1,9 +1,13 @@
-// Доменная модель изображения
+// Доменная модель изображения: эти типы описывают общий контракт между upload,
+// viewer, download, status bar и инструментами обработки.
 export type ImageFileFormat = 'png' | 'jpeg' | 'gb7'
 
+// colorMode описывает представление данных для UI и metadata, а не меняет то,
+// что ImageData внутри canvas всегда хранится как RGBA.
 export type ImageColorMode = 'rgba' | 'rgb' | 'grayscale'
 
 export interface ImageMetadata {
+  // Размеры относятся к исходному ImageData, а не к CSS scale на экране.
   readonly width: number
   readonly height: number
   readonly colorDepth: number
@@ -15,6 +19,8 @@ export interface ImageMetadata {
 }
 
 export interface EditableImage {
+  // imageData считается текущим редактируемым состоянием изображения.
+  // Preview tools должны создавать копии и записывать сюда только после Apply.
   readonly imageData: ImageData
   readonly metadata: ImageMetadata
 }
@@ -31,6 +37,8 @@ export interface ImageLoadFailure {
 
 export type ImageLoadResult = ImageLoadSuccess | ImageLoadFailure
 
+// Коды ошибок типизированы, чтобы UI мог показывать понятные сообщения
+// без парсинга текста исключения.
 export type FileProcessingErrorCode =
   | 'UNSUPPORTED_FORMAT'
   | 'IMAGE_DECODE_FAILED'
@@ -56,6 +64,7 @@ export interface DecodedGB7Image {
 }
 
 export interface GB7EncodeOptions {
+  // includeMask позволяет явно включить/выключить старший бит маски при экспорте GB7.
   readonly includeMask?: boolean
   readonly alphaMaskThreshold?: number
 }

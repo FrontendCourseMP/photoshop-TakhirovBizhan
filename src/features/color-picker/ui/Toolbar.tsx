@@ -21,6 +21,8 @@ export function Toolbar({
   onResizeOpen,
   onFiltersOpen,
 }: ToolbarProps): JSX.Element {
+  // Toolbar только вызывает callbacks page-слоя. Так инструменты остаются независимыми,
+  // а правила открытия dialog и наличие изображения контролируются выше.
   return (
     <section className="tool-panel" aria-label="Tools">
       <button

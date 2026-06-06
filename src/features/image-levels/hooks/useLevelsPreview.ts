@@ -16,6 +16,8 @@ export function useLevelsPreview({
   previewEnabled,
   onPreviewChange,
 }: UseLevelsPreviewOptions): void {
+  // Scheduler живет между render-циклами компонента, чтобы частые input-события
+  // не запускали несколько тяжелых пересчетов preview подряд.
   const schedulerRef = useRef<RafPreviewScheduler | null>(null)
 
   if (schedulerRef.current === null) {
@@ -27,6 +29,8 @@ export function useLevelsPreview({
     schedulerRef.current = scheduler
 
     if (!previewEnabled) {
+      // При выключенном preview главный canvas должен показывать snapshot до открытия Levels,
+      // поэтому наружу отправляется null вместо пересчитанного ImageData.
       scheduler.cancelPreviewUpdate()
       onPreviewChange(null)
 
@@ -37,6 +41,7 @@ export function useLevelsPreview({
 
     scheduler.schedulePreviewUpdate((): void => {
       // Тяжелая обработка пикселей вынесена из render и объединяется в один проход на кадр.
+      // Это защищает UI от render storm при перетаскивании slider уровней.
       onPreviewChange(applyLevels(sourceImageData, levelsState))
     })
 

@@ -8,6 +8,8 @@ interface KernelGridProps {
 
 export function KernelGrid({ kernel, onKernelChange }: KernelGridProps): JSX.Element {
   function handleKernelValueChange(index: number, value: number): void {
+    // Копия kernel создается перед изменением, чтобы не мутировать props
+    // и сохранить предсказуемый flow обновления settings.
     const nextKernel: number[] = [...kernel]
     nextKernel[index] = Number.isFinite(value) ? value : 0
     onKernelChange(toKernel3x3(nextKernel))
@@ -31,6 +33,8 @@ export function KernelGrid({ kernel, onKernelChange }: KernelGridProps): JSX.Ele
 }
 
 function toKernel3x3(values: readonly number[]): Kernel3x3 {
+  // Tuple Kernel3x3 гарантирует, что алгоритм свертки всегда получит ровно 9 чисел.
+  // Недостающие значения заменяются нулями после ручного ввода.
   return [
     values[0] ?? 0,
     values[1] ?? 0,

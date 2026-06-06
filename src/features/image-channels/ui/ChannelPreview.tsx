@@ -12,6 +12,8 @@ export function ChannelPreview({ title, imageData, isInactive = false }: Channel
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect((): void => {
+    // Миниатюра рисуется через canvas, потому что ее source тоже ImageData.
+    // React не должен сериализовать пиксели в JSX или data URL при каждом render.
     const canvas: HTMLCanvasElement | null = canvasRef.current
 
     if (canvas === null) {

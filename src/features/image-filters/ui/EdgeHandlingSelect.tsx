@@ -25,6 +25,8 @@ export function EdgeHandlingSelect({ value, onChange }: EdgeHandlingSelectProps)
 }
 
 function parseEdgeHandlingStrategy(value: string): EdgeHandlingStrategy {
+  // Select возвращает string, поэтому значение проверяется по допустимым стратегиям.
+  // Fallback copy безопаснее для границ: он не добавляет искусственный черный/белый контур.
   if (value === 'black' || value === 'white' || value === 'copy') {
     return value
   }

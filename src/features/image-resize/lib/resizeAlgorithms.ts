@@ -2,6 +2,7 @@ import type { ImageSize } from '../../../shared/types/imageSize'
 import type { InterpolationMethod } from '../types'
 
 export function resizeImage(source: ImageData, targetSize: ImageSize, method: InterpolationMethod): ImageData {
+  // Dispatcher отделяет UI от конкретного алгоритма и упрощает добавление Bicubic/Lanczos в будущем.
   return method === 'nearest-neighbor'
     ? resizeNearestNeighbor(source, targetSize)
     : resizeBilinear(source, targetSize)
@@ -10,6 +11,10 @@ export function resizeImage(source: ImageData, targetSize: ImageSize, method: In
 /**
  * Nearest Neighbor выбирает ближайший исходный пиксель без смешивания цветов.
  * Метод быстрый и хорошо сохраняет жесткие границы, но при увеличении дает ступенчатость.
+ */
+/**
+ * Nearest Neighbor берет ближайший исходный пиксель без смешивания цветов.
+ * Такой подход быстрый и полезен для pixel-art, но при увеличении дает ступенчатые границы.
  */
 export function resizeNearestNeighbor(source: ImageData, targetSize: ImageSize): ImageData {
   const targetWidth: number = normalizeDimension(targetSize.width)
@@ -33,6 +38,10 @@ export function resizeNearestNeighbor(source: ImageData, targetSize: ImageSize):
 /**
  * Bilinear интерполирует цвет по четырем соседним пикселям исходного изображения.
  * Координаты берутся по центрам пикселей, чтобы масштабирование не давало систематического сдвига.
+ */
+/**
+ * Bilinear смешивает четыре ближайших пикселя, чтобы получить более плавный результат.
+ * Координаты считаются от центров пикселей, иначе при масштабировании появлялся бы визуальный сдвиг.
  */
 export function resizeBilinear(source: ImageData, targetSize: ImageSize): ImageData {
   const targetWidth: number = normalizeDimension(targetSize.width)
@@ -78,6 +87,7 @@ function writeBilinearPixel(
   const bottomLeftIndex: number = (y1 * source.width + x0) * 4
   const bottomRightIndex: number = (y1 * source.width + x1) * 4
 
+  // Каждый RGBA-канал интерполируется отдельно, включая Alpha, чтобы прозрачные края не превращались в резкие ступени.
   for (let channel = 0; channel < 4; channel += 1) {
     const top: number = interpolate(source.data[topLeftIndex + channel], source.data[topRightIndex + channel], xWeight)
     const bottom: number = interpolate(

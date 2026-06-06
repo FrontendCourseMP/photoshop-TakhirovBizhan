@@ -8,10 +8,14 @@ export function pickPixelColor(
   coordinates: ImageCoordinates,
   mode: ColorPickerMode = DEFAULT_COLOR_PICKER_MODE,
 ): ColorPickerResult | null {
+  // Цвет читается из исходного ImageData, а не из DOM, чтобы результат не зависел
+  // от CSS-масштаба canvas и визуальных эффектов отображения.
   if (!isInsideImage(imageData, coordinates)) {
     return null
   }
 
+  // В ImageData каждый пиксель занимает 4 последовательных байта RGBA.
+  // Смещение считается от координат изображения, уже нормализованных canvasCoordinates.
   const pixelIndex: number = (coordinates.y * imageData.width + coordinates.x) * 4
   const rgba: RGBAColor = {
     r: imageData.data[pixelIndex],
@@ -25,12 +29,15 @@ export function pickPixelColor(
     pixel: {
       coordinates,
       rgba,
+      // LAB считается сразу вместе с RGB, чтобы UI не дублировал color math.
       lab: rgbToCielab(rgba),
     },
   }
 }
 
 function isInsideImage(imageData: ImageData, coordinates: ImageCoordinates): boolean {
+  // Защита нужна не только для mouse-событий: функцию можно переиспользовать
+  // с координатами из других источников, где нет DOMRect-проверки.
   return (
     coordinates.x >= 0 &&
     coordinates.y >= 0 &&

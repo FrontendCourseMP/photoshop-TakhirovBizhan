@@ -7,6 +7,8 @@ interface ColorPickerInfoProps {
 }
 
 export function ColorPickerInfo({ result }: ColorPickerInfoProps): JSX.Element {
+  // HEX и swatch являются только представлением уже выбранного цвета.
+  // Расчет координат, RGBA и LAB выполняется в feature lib, а не в UI.
   const hexColor: string | null = result === null ? null : rgbToHex(result.pixel.rgba)
   const swatchColor: string | undefined =
     result === null

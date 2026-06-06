@@ -30,6 +30,8 @@ import type { ImageSize } from "../../shared/types/imageSize";
 import "./ImageEditorPage.css";
 
 export function ImageEditorPage(): JSX.Element {
+  // Page-слой хранит состояние редактора и связывает features между собой.
+  // Сами алгоритмы обработки пикселей остаются в lib-модулях конкретных features.
   const [image, setImage] = useState<EditableImage | null>(null);
   const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS_STATE);
   const [displayScalePercent, setDisplayScalePercent] = useState<number>(100);
@@ -43,8 +45,9 @@ export function ImageEditorPage(): JSX.Element {
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
   const [error, setError] = useState<FileProcessingError | null>(null);
 
-  // Page-слой связывает features и не содержит алгоритмов обработки пикселей.
   function handleImageLoaded(nextImage: EditableImage): void {
+    // При загрузке нового изображения рассчитываем стартовый scale от доступного viewport,
+    // чтобы крупные файлы сразу помещались в рабочую область и не перекрывали панели.
     const initialScalePercent: number =
       canvasViewportSize === null
         ? 100
@@ -67,10 +70,14 @@ export function ImageEditorPage(): JSX.Element {
   }
 
   function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
+    // Пипетка работает только в активном режиме, поэтому обычные клики по canvas
+    // не создают побочных эффектов для остальных инструментов редактора.
     if (!isColorPickerActive || image === null) {
       return;
     }
 
+    // Координаты переводятся из CSS-пространства canvas в реальные координаты ImageData.
+    // Это важно при масштабировании изображения через displayScalePercent.
     const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(event, canvas);
 
     if (coordinates === null) {
@@ -81,6 +88,7 @@ export function ImageEditorPage(): JSX.Element {
   }
 
   function handleLevelsCancel(): void {
+    // Cancel откатывает временный preview: исходное image.imageData остается неизменным.
     setLevelsPreviewImageData(null);
     setIsLevelsDialogOpen(false);
   }
@@ -90,6 +98,8 @@ export function ImageEditorPage(): JSX.Element {
       return;
     }
 
+    // Apply сохраняет результат Levels как новое основное состояние изображения.
+    // Метаданные размера не меняются, потому что градационная коррекция не меняет геометрию.
     setImage({
       ...image,
       imageData: nextImageData,
@@ -104,6 +114,8 @@ export function ImageEditorPage(): JSX.Element {
       return;
     }
 
+    // После resize пересчитываем стартовый scale, иначе новое изображение может оказаться
+    // слишком большим или слишком маленьким относительно текущего viewport.
     const nextScalePercent: number =
       canvasViewportSize === null
         ? displayScalePercent
@@ -128,6 +140,8 @@ export function ImageEditorPage(): JSX.Element {
       return;
     }
 
+    // Фильтры применяются к основному imageData только после подтверждения в dialog.
+    // До этого canvas получает отдельный preview через filterPreviewImageData.
     setImage({
       ...image,
       imageData: nextImageData,
@@ -138,6 +152,9 @@ export function ImageEditorPage(): JSX.Element {
   }
 
   const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
+    // Canvas всегда получает уже готовую версию для отображения:
+    // сначала активный preview фильтров, затем preview Levels, затем оригинальное imageData.
+    // Каналы накладываются поверх выбранной базы и не мутируют исходные пиксели.
     if (image === null) {
       return null;
     }

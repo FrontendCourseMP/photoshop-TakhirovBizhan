@@ -13,6 +13,8 @@ export function ImageUploadPanel({ onImageLoaded, onError }: ImageUploadPanelPro
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    // UI-слой только получает File из input и передает его в model.
+    // Декодирование PNG/JPEG/GB7 и нормализация ошибок находятся вне компонента.
     const input: HTMLInputElement = event.currentTarget
     const file: File | undefined = input.files?.[0]
 
@@ -25,11 +27,13 @@ export function ImageUploadPanel({ onImageLoaded, onError }: ImageUploadPanelPro
     const result = await loadImageFile(file)
 
     if (result.ok) {
+      // Успешный результат передается page-слою как EditableImage с ImageData и metadata.
       onImageLoaded(result.image)
     } else {
       onError(result.error)
     }
 
+    // Сбрасываем value, чтобы повторный выбор того же файла снова вызвал onChange.
     input.value = ''
     setIsLoading(false)
   }

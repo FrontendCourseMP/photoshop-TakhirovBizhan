@@ -16,6 +16,7 @@ interface LevelsLuts {
 export function applyLevels(source: ImageData, levelsState: LevelsState): ImageData {
   const outputBuffer: ArrayBuffer = new ArrayBuffer(source.data.length)
   const outputData: Uint8ClampedArray<ArrayBuffer> = new Uint8ClampedArray(outputBuffer)
+  // LUT создаются один раз на канал, чтобы в основном цикле по пикселям были только обращения по индексу.
   const luts: LevelsLuts = {
     master: createLevelsLUT(levelsState.master),
     red: createLevelsLUT(levelsState.red),
@@ -25,6 +26,7 @@ export function applyLevels(source: ImageData, levelsState: LevelsState): ImageD
   }
 
   for (let index = 0; index < source.data.length; index += 4) {
+    // Master применяется первым ко всем RGB-каналам; Alpha не участвует в Master по правилам Levels.
     const masterRed: number = luts.master[source.data[index]]
     const masterGreen: number = luts.master[source.data[index + 1]]
     const masterBlue: number = luts.master[source.data[index + 2]]

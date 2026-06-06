@@ -17,6 +17,8 @@ const channelLabels: Readonly<Record<FilterChannel, string>> = {
 
 export function FilterChannels({ selectedChannels, onChannelsChange }: FilterChannelsProps): JSX.Element {
   function handleChannelChange(channel: FilterChannel, checked: boolean): void {
+    // Каналы фильтра хранятся как immutable список, чтобы React корректно увидел
+    // изменение settings и перезапустил preview.
     if (checked) {
       onChannelsChange([...selectedChannels, channel])
       return

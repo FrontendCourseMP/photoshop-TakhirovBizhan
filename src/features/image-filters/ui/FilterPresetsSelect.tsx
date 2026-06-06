@@ -8,6 +8,8 @@ interface FilterPresetsSelectProps {
 
 export function FilterPresetsSelect({ onPresetSelect }: FilterPresetsSelectProps): JSX.Element {
   function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
+    // Preset ищется по id из model; если DOM вернул неизвестное значение,
+    // настройки фильтра не меняются.
     const preset: KernelPreset | undefined = FILTER_KERNEL_PRESETS.find(
       (item: KernelPreset): boolean => item.id === event.currentTarget.value,
     )

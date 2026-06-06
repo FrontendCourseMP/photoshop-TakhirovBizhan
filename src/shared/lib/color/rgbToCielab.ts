@@ -13,6 +13,7 @@ const D65_WHITE_POINT: XYZColor = {
 }
 
 export function rgbToCielab(rgb: RGBColor): CIELABColor {
+  // CIELAB считается через промежуточное XYZ-пространство, потому что LAB привязан к perceptual lightness.
   const xyz: XYZColor = rgbToXyz(rgb)
 
   const x: number = labPivot(xyz.x / D65_WHITE_POINT.x)
@@ -27,6 +28,7 @@ export function rgbToCielab(rgb: RGBColor): CIELABColor {
 }
 
 function rgbToXyz(rgb: RGBColor): XYZColor {
+  // sRGB хранится с гамма-кривой, поэтому перед матричным преобразованием значения нужно линеаризовать.
   const red: number = srgbToLinear(rgb.r / 255)
   const green: number = srgbToLinear(rgb.g / 255)
   const blue: number = srgbToLinear(rgb.b / 255)
@@ -39,6 +41,7 @@ function rgbToXyz(rgb: RGBColor): XYZColor {
 }
 
 function srgbToLinear(value: number): number {
+  // Формула sRGB имеет линейный участок около нуля и степенной участок для остальных значений.
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
@@ -46,6 +49,7 @@ function labPivot(value: number): number {
   const epsilon = 216 / 24389
   const kappa = 24389 / 27
 
+  // Порог epsilon нужен, чтобы LAB оставался непрерывным около черного и не уходил в бесконечную производную.
   return value > epsilon ? Math.cbrt(value) : (kappa * value + 16) / 116
 }
 

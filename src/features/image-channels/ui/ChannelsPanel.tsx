@@ -28,12 +28,16 @@ export function ChannelsPanel({
 }: ChannelsPanelProps): JSX.Element {
   const previews: readonly ChannelPreviewData[] =
     useMemo((): readonly ChannelPreviewData[] => {
+      // Превью строятся из sourceImageData, а не из текущего displayedImageData.
+      // Поэтому миниатюры всегда показывают исходное содержимое каналов без накопления эффектов.
       return sourceImageData === null
         ? []
         : createChannelPreviews(sourceImageData);
     }, [sourceImageData]);
 
   function handleToggle(channel: ColorChannel): void {
+    // Состояние каналов иммутабельно пересобирается на page-уровне:
+    // сама панель не применяет пиксельные изменения к изображению.
     onChannelsChange({
       ...channels,
       [channel]: !channels[channel],

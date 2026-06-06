@@ -2,6 +2,7 @@ import { createFileProcessingError } from '../../../entities/image/lib/errors'
 import type { FileProcessingError } from '../../../entities/image/types'
 
 export function getCanvasRenderingContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  // willReadFrequently подсказывает браузеру, что canvas будет использоваться для частого чтения пикселей.
   const context: CanvasRenderingContext2D | null = canvas.getContext('2d', {
     willReadFrequently: true,
   })
@@ -16,6 +17,7 @@ export function getCanvasRenderingContext(canvas: HTMLCanvasElement): CanvasRend
 export function drawImageDataToCanvas(canvas: HTMLCanvasElement, imageData: ImageData): void {
   const context: CanvasRenderingContext2D = getCanvasRenderingContext(canvas)
 
+  // Размер backing canvas синхронизируется с ImageData, иначе putImageData будет обрезать или оставлять старые пиксели.
   canvas.width = imageData.width
   canvas.height = imageData.height
   context.clearRect(0, 0, canvas.width, canvas.height)
@@ -38,6 +40,7 @@ export async function readBrowserImageData(file: File): Promise<ImageData> {
     canvas.height = bitmap.height
 
     const context: CanvasRenderingContext2D = getCanvasRenderingContext(canvas)
+    // Браузерное декодирование сначала рисуется на временный canvas, потому что ImageData можно получить только из canvas.
     context.drawImage(bitmap, 0, 0)
 
     return context.getImageData(0, 0, canvas.width, canvas.height)

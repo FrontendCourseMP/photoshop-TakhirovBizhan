@@ -12,6 +12,8 @@ export function Modal({ open, title, children, onClose }: ModalProps): JSX.Eleme
   const dialogRef = useRef<HTMLDialogElement | null>(null)
 
   useEffect((): void => {
+    // Native <dialog> управляется императивно: React передает open,
+    // а showModal/close синхронизируют реальное состояние DOM-элемента.
     const dialog: HTMLDialogElement | null = dialogRef.current
 
     if (dialog === null) {
@@ -29,6 +31,7 @@ export function Modal({ open, title, children, onClose }: ModalProps): JSX.Eleme
   }, [open])
 
   if (!open) {
+    // Закрытый modal не рендерится, чтобы внутри него не оставались активные inputs/effects.
     return null
   }
 
@@ -37,6 +40,7 @@ export function Modal({ open, title, children, onClose }: ModalProps): JSX.Eleme
       className="modal-dialog"
       ref={dialogRef}
       onCancel={(event) => {
+        // Escape должен проходить через onClose, чтобы feature успела сбросить preview/snapshot.
         event.preventDefault()
         onClose()
       }}

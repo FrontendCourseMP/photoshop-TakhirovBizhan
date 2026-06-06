@@ -23,17 +23,22 @@ export function FiltersDialog({
   onApply,
   onCancel,
 }: FiltersDialogProps): JSX.Element | null {
+  // Dialog отвечает за форму фильтра, а preview и отмена устаревших расчетов
+  // находятся в useFiltersDialog, чтобы UI не содержал pixel-processing логику.
   const { settings, isProcessing, updateSettings, resetSettings } = useFiltersDialog({
     sourceImageData,
     onPreviewChange,
   })
 
   function handleCancel(): void {
+    // Cancel должен вернуть canvas к исходному snapshot, поэтому preview сбрасывается явно.
     onPreviewChange(null)
     onCancel()
   }
 
   function handleApply(): void {
+    // Apply выполняет финальную фильтрацию один раз. До этого пользователь видит
+    // только временный preview, который не мутирует sourceImageData.
     onPreviewChange(null)
     onApply(applyKernel3x3(sourceImageData, settings))
   }
@@ -44,6 +49,8 @@ export function FiltersDialog({
         <div className="filters-grid">
           <FilterPresetsSelect
             onPresetSelect={(preset: KernelPreset) => {
+              // Preset заменяет только параметры свертки, сохраняя остальные настройки dialog
+              // вроде edge handling, выбранных каналов и preview.
               updateSettings({
                 ...settings,
                 kernel: preset.kernel,
@@ -55,6 +62,7 @@ export function FiltersDialog({
           <EdgeHandlingSelect
             value={settings.edgeHandling}
             onChange={(edgeHandling: EdgeHandlingStrategy) => {
+              // Edge handling влияет только на чтение соседних пикселей за границей изображения.
               updateSettings({
                 ...settings,
                 edgeHandling,
@@ -66,6 +74,7 @@ export function FiltersDialog({
         <KernelGrid
           kernel={settings.kernel}
           onKernelChange={(kernel: Kernel3x3) => {
+            // Ручное изменение kernel сразу запускает preview через hook.
             updateSettings({
               ...settings,
               kernel,
@@ -81,6 +90,7 @@ export function FiltersDialog({
               type="number"
               value={settings.divisor ?? 1}
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                // Divisor нормализует сумму свертки; в lib есть защита от нулевого значения.
                 updateSettings({
                   ...settings,
                   divisor: Number(event.currentTarget.value),
@@ -95,6 +105,7 @@ export function FiltersDialog({
               type="number"
               value={settings.offset ?? 0}
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                // Offset добавляется после свертки и нужен для фильтров вроде emboss.
                 updateSettings({
                   ...settings,
                   offset: Number(event.currentTarget.value),
@@ -107,6 +118,7 @@ export function FiltersDialog({
         <FilterChannels
           selectedChannels={settings.selectedChannels}
           onChannelsChange={(selectedChannels) => {
+            // Маска каналов позволяет применять kernel только к выбранным компонентам RGBA.
             updateSettings({
               ...settings,
               selectedChannels,
@@ -119,6 +131,7 @@ export function FiltersDialog({
             checked={settings.previewEnabled}
             type="checkbox"
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              // Выключенный preview сообщает page-слою null, и canvas показывает исходное imageData.
               updateSettings({
                 ...settings,
                 previewEnabled: event.currentTarget.checked,

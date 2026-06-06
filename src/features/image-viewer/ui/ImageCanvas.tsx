@@ -22,6 +22,8 @@ export function ImageCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect((): void => {
+    // Отрисовка отделена от JSX: React управляет элементом canvas,
+    // а реальные пиксели записываются через Canvas API только при смене ImageData.
     const canvas: HTMLCanvasElement | null = canvasRef.current
 
     if (canvas === null || imageData === null) {
@@ -32,6 +34,8 @@ export function ImageCanvas({
   }, [imageData])
 
   useEffect((): (() => void) | void => {
+    // Размер viewport нужен page-слою для расчета стартового display scale.
+    // ResizeObserver реагирует и на изменение окна, и на перестроение layout.
     const shell: HTMLDivElement | null = shellRef.current
 
     if (shell === null || onViewportSizeChange === undefined) {
@@ -42,6 +46,8 @@ export function ImageCanvas({
     const emitSize: (size: ImageSize) => void = onViewportSizeChange
 
     function emitViewportSize(): void {
+      // clientWidth/clientHeight описывают доступную область без scrollbars,
+      // поэтому они лучше подходят для подгонки изображения под workspace.
       emitSize({
         width: currentShell.clientWidth,
         height: currentShell.clientHeight,
@@ -62,11 +68,16 @@ export function ImageCanvas({
     imageData === null
       ? undefined
       : {
+          // Реальный размер canvas остается равным размеру ImageData, а CSS-размер
+          // отвечает только за отображаемый scale. Так пипетка может восстановить
+          // координаты исходного пикселя через соотношение backing size и CSS size.
           width: `${Math.max(Math.round((imageData.width * displayScalePercent) / 100), 1)}px`,
           height: `${Math.max(Math.round((imageData.height * displayScalePercent) / 100), 1)}px`,
         }
 
   function handleCanvasClick(event: ReactMouseEvent<HTMLCanvasElement>): void {
+    // В feature color-picker передается native MouseEvent, потому что расчет координат
+    // использует DOMRect и не должен зависеть от React SyntheticEvent.
     if (onCanvasClick === undefined) {
       return
     }

@@ -26,6 +26,8 @@ export function ResizeImageDialog({
   onCancel,
 }: ResizeImageDialogProps): JSX.Element | null {
   const sourceSize: ImageSize = useMemo((): ImageSize => {
+    // Размер source фиксируется из ImageData и используется как база для процентов,
+    // aspect ratio и статистики, чтобы расчеты не зависели от временного UI-ввода.
     return {
       width: sourceImageData.width,
       height: sourceImageData.height,
@@ -39,12 +41,17 @@ export function ResizeImageDialog({
     interpolationMethod: DEFAULT_RESIZE_METHOD,
   })
   const targetSize: ImageSize = useMemo((): ImageSize => {
+    // Target size является производным значением: при percent mode он вычисляется
+    // из исходного размера, а при pixels mode берется из полей ввода.
     return getTargetSizeFromSettings(settings, sourceSize)
   }, [settings, sourceSize])
   const validation: ResizeValidationResult = useMemo((): ResizeValidationResult => {
+    // Validation выполняется до тяжелого resize, чтобы некорректные размеры
+    // не создавали большие массивы пикселей и не блокировали UI.
     return validateResizeSettings(settings, sourceSize)
   }, [settings, sourceSize])
   const stats: ResizeStats = useMemo((): ResizeStats => {
+    // Статистика показывает пользователю масштаб изменения до применения операции.
     return calculateResizeStats(sourceSize, targetSize)
   }, [sourceSize, targetSize])
   const selectedAlgorithm: InterpolationAlgorithm =
@@ -53,6 +60,8 @@ export function ResizeImageDialog({
     ) ?? INTERPOLATION_ALGORITHMS[0]
 
   function handleInputModeChange(event: ChangeEvent<HTMLSelectElement>): void {
+    // При смене режима значения сбрасываются в нейтральные для режима:
+    // 100% для percent и исходный размер для pixels.
     const inputMode = event.currentTarget.value === 'percent' ? 'percent' : 'pixels'
 
     setSettings({
@@ -65,6 +74,7 @@ export function ResizeImageDialog({
 
   function handleWidthChange(value: number): void {
     if (!settings.keepAspectRatio) {
+      // Без сохранения пропорций ширина и высота редактируются независимо.
       setSettings({
         ...settings,
         width: value,
@@ -73,6 +83,7 @@ export function ResizeImageDialog({
     }
 
     if (settings.inputMode === 'percent') {
+      // В percent mode одинаковый процент по обеим осям сохраняет aspect ratio без пересчета.
       setSettings({
         ...settings,
         width: value,
@@ -81,6 +92,8 @@ export function ResizeImageDialog({
       return
     }
 
+    // В pixels mode связанный размер считается от исходного aspect ratio,
+    // чтобы последовательные правки не накапливали ошибку округления.
     const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'width', value)
     setSettings({
       ...settings,
@@ -91,6 +104,7 @@ export function ResizeImageDialog({
 
   function handleHeightChange(value: number): void {
     if (!settings.keepAspectRatio) {
+      // Если пользователь отключил aspect ratio, высота меняется без влияния на ширину.
       setSettings({
         ...settings,
         height: value,
@@ -99,6 +113,7 @@ export function ResizeImageDialog({
     }
 
     if (settings.inputMode === 'percent') {
+      // Процентный resize с сохранением пропорций использует одно значение для width/height.
       setSettings({
         ...settings,
         width: value,
@@ -107,6 +122,8 @@ export function ResizeImageDialog({
       return
     }
 
+    // Пересчет ширины от высоты использует исходные размеры, а не текущий target,
+    // чтобы результат был предсказуемым после нескольких изменений.
     const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'height', value)
     setSettings({
       ...settings,
@@ -117,9 +134,13 @@ export function ResizeImageDialog({
 
   function handleApply(): void {
     if (!validation.ok) {
+      // Защита дублирует disabled-кнопку: функцию нельзя применить с невалидным state
+      // даже если обработчик будет вызван напрямую.
       return
     }
 
+    // Resize выполняется только при Apply, потому что операция создает новый ImageData
+    // и может быть дорогой на больших изображениях.
     onApply(resizeImage(sourceImageData, targetSize, settings.interpolationMethod))
   }
 
@@ -152,6 +173,8 @@ export function ResizeImageDialog({
               checked={settings.keepAspectRatio}
               type="checkbox"
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                // Toggle меняет только связь размеров; текущие значения не пересчитываются
+                // до следующего изменения width или height.
                 setSettings({
                   ...settings,
                   keepAspectRatio: event.currentTarget.checked,
@@ -167,6 +190,7 @@ export function ResizeImageDialog({
               title={selectedAlgorithm.description}
               value={settings.interpolationMethod}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                // Значение select проверяется вручную, чтобы в state попал только известный метод.
                 const method: InterpolationMethod =
                   event.currentTarget.value === 'nearest-neighbor' ? 'nearest-neighbor' : 'bilinear'
 
@@ -216,6 +240,8 @@ function ResizeNumberField({ label, value, onChange }: ResizeNumberFieldProps): 
         type="number"
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          // Number input может временно вернуть NaN при пустом поле; validation ниже
+          // не даст применить некорректное значение.
           onChange(Number(event.currentTarget.value))
         }}
       />

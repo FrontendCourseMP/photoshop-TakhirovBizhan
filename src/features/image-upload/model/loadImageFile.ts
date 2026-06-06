@@ -12,6 +12,8 @@ import type {
 import { readBrowserImageData } from '../../image-viewer/lib/canvasUtils'
 
 export async function loadImageFile(file: File): Promise<ImageLoadResult> {
+  // Сначала определяем формат по имени файла: от него зависит,
+  // использовать ли браузерный decoder или собственный GB7 codec.
   const format: ImageFileFormat | null = detectImageFileFormat(file)
 
   if (format === null) {
@@ -25,7 +27,8 @@ export async function loadImageFile(file: File): Promise<ImageLoadResult> {
   }
 
   try {
-    // Модуль загрузки выбирает инфраструктурный путь: браузерный декодер для PNG/JPEG или собственный GB7-кодек.
+    // Модуль загрузки выбирает инфраструктурный путь: браузерный decoder для PNG/JPEG
+    // или собственный GB7 codec для лабораторного формата.
     const image: EditableImage =
       format === 'gb7' ? await loadGB7Image(file) : await loadBrowserImage(file, format)
 
@@ -42,6 +45,8 @@ export async function loadImageFile(file: File): Promise<ImageLoadResult> {
 }
 
 async function loadGB7Image(file: File): Promise<EditableImage> {
+  // GB7 читается как бинарный ArrayBuffer, потому что формат хранит header и пиксели
+  // в собственном byte layout, недоступном через HTMLImageElement.
   const buffer: ArrayBuffer = await file.arrayBuffer()
   const decoded: DecodedGB7Image = decodeGB7(buffer)
 
@@ -57,7 +62,8 @@ async function loadGB7Image(file: File): Promise<EditableImage> {
 
 async function loadBrowserImage(file: File, format: Exclude<ImageFileFormat, 'gb7'>): Promise<EditableImage> {
   const imageData: ImageData = await readBrowserImageData(file)
-  // Для браузерных форматов глубина фиксируется на уровне представления: JPEG без альфа-канала, PNG с альфа-каналом.
+  // Для браузерных форматов глубина фиксируется на уровне представления:
+  // JPEG без alpha-канала, PNG с возможным alpha-каналом.
   const metadata: ImageMetadata = {
     width: imageData.width,
     height: imageData.height,
@@ -75,6 +81,8 @@ async function loadBrowserImage(file: File, format: Exclude<ImageFileFormat, 'gb
 }
 
 function normalizeLoadError(cause: unknown): FileProcessingError {
+  // Наружу feature возвращает единый FileProcessingError независимо от того,
+  // где возникла ошибка: в GB7 codec, canvas decoder или другом месте.
   if (cause instanceof GB7CodecError) {
     return createFileProcessingError(cause.code, cause.message, cause)
   }
@@ -87,6 +95,7 @@ function normalizeLoadError(cause: unknown): FileProcessingError {
 }
 
 function isFileProcessingError(value: unknown): value is FileProcessingError {
+  // unknown безопасно сужается по минимальному контракту ошибки, без any и unsafe cast.
   if (typeof value !== 'object' || value === null) {
     return false
   }
