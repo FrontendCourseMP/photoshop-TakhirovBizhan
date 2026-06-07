@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Modal } from '../../../shared/ui/Modal'
+import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import type { ImageSize } from '../../../shared/types/imageSize'
 import {
   calculateAspectRatioSize,
@@ -8,7 +9,7 @@ import {
   getTargetSizeFromSettings,
   validateResizeSettings,
 } from '../lib/resizeValidation'
-import { resizeImage } from '../lib/resizeAlgorithms'
+import { resizeImageInWorker } from '../../image-processing-worker/workerClient'
 import { DEFAULT_RESIZE_METHOD, INTERPOLATION_ALGORITHMS } from '../model/resizeConstants'
 import type { InterpolationAlgorithm, InterpolationMethod, ResizeSettings, ResizeStats, ResizeValidationResult } from '../types'
 
@@ -17,6 +18,7 @@ interface ResizeImageDialogProps {
   readonly sourceImageData: ImageData
   readonly onApply: (imageData: ImageData) => void
   readonly onCancel: () => void
+  readonly onProcessingChange?: (isPending: boolean) => void
 }
 
 export function ResizeImageDialog({
@@ -24,6 +26,7 @@ export function ResizeImageDialog({
   sourceImageData,
   onApply,
   onCancel,
+  onProcessingChange,
 }: ResizeImageDialogProps): JSX.Element | null {
   const sourceSize: ImageSize = useMemo((): ImageSize => {
     // Размер source фиксируется из ImageData и используется как база для процентов,
@@ -40,6 +43,7 @@ export function ResizeImageDialog({
     keepAspectRatio: true,
     interpolationMethod: DEFAULT_RESIZE_METHOD,
   })
+  const [isApplying, setIsApplying] = useState<boolean>(false)
   const targetSize: ImageSize = useMemo((): ImageSize => {
     // Target size является производным значением: при percent mode он вычисляется
     // из исходного размера, а при pixels mode берется из полей ввода.
@@ -58,6 +62,14 @@ export function ResizeImageDialog({
     INTERPOLATION_ALGORITHMS.find(
       (algorithm: InterpolationAlgorithm): boolean => algorithm.id === settings.interpolationMethod,
     ) ?? INTERPOLATION_ALGORITHMS[0]
+
+  function handleCancel(): void {
+    if (isApplying) {
+      return
+    }
+
+    onCancel()
+  }
 
   function handleInputModeChange(event: ChangeEvent<HTMLSelectElement>): void {
     // При смене режима значения сбрасываются в нейтральные для режима:
@@ -132,7 +144,7 @@ export function ResizeImageDialog({
     })
   }
 
-  function handleApply(): void {
+  async function handleApply(): Promise<void> {
     if (!validation.ok) {
       // Защита дублирует disabled-кнопку: функцию нельзя применить с невалидным state
       // даже если обработчик будет вызван напрямую.
@@ -141,11 +153,21 @@ export function ResizeImageDialog({
 
     // Resize выполняется только при Apply, потому что операция создает новый ImageData
     // и может быть дорогой на больших изображениях.
-    onApply(resizeImage(sourceImageData, targetSize, settings.interpolationMethod))
+    setIsApplying(true)
+    onProcessingChange?.(true)
+
+    try {
+      onApply(await resizeImageInWorker(sourceImageData, targetSize, settings.interpolationMethod))
+    } catch {
+      // При сбое Worker dialog остается открытым, а исходное изображение не меняется.
+    } finally {
+      setIsApplying(false)
+      onProcessingChange?.(false)
+    }
   }
 
   return (
-    <Modal open={open} title="Resize Image" onClose={onCancel}>
+    <Modal open={open} title="Resize Image" onClose={handleCancel}>
       <div className="resize-dialog">
         <section className="resize-stats" aria-label="Resize statistics">
           <StatItem label="Before" value={`${sourceSize.width} × ${sourceSize.height}`} />
@@ -210,14 +232,21 @@ export function ResizeImageDialog({
 
           <p className="resize-tooltip">{selectedAlgorithm.description}</p>
           {validation.message === null ? null : <p className="resize-error">{validation.message}</p>}
+          <OperationLoader active={isApplying} label="Resizing image..." />
         </div>
 
         <footer className="resize-actions">
-          <button type="button" onClick={onCancel}>
+          <button type="button" disabled={isApplying} onClick={handleCancel}>
             Cancel
           </button>
-          <button type="button" disabled={!validation.ok} onClick={handleApply}>
-            Apply
+          <button
+            type="button"
+            disabled={!validation.ok || isApplying}
+            onClick={() => {
+              void handleApply()
+            }}
+          >
+            {isApplying ? 'Applying...' : 'Apply'}
           </button>
         </footer>
       </div>

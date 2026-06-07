@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Modal } from '../../../shared/ui/Modal'
-import { applyKernel3x3 } from '../lib/applyKernel'
+import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
+import { applyKernel3x3InWorker } from '../../image-processing-worker/workerClient'
 import { useFiltersDialog } from '../hooks/useFiltersDialog'
 import type { EdgeHandlingStrategy, Kernel3x3, KernelPreset } from '../types'
 import { EdgeHandlingSelect } from './EdgeHandlingSelect'
@@ -14,6 +16,7 @@ interface FiltersDialogProps {
   readonly onPreviewChange: (imageData: ImageData | null) => void
   readonly onApply: (imageData: ImageData) => void
   readonly onCancel: () => void
+  readonly onProcessingChange?: (isPending: boolean) => void
 }
 
 export function FiltersDialog({
@@ -22,6 +25,7 @@ export function FiltersDialog({
   onPreviewChange,
   onApply,
   onCancel,
+  onProcessingChange,
 }: FiltersDialogProps): JSX.Element | null {
   // Dialog отвечает за форму фильтра, а preview и отмена устаревших расчетов
   // находятся в useFiltersDialog, чтобы UI не содержал pixel-processing логику.
@@ -29,18 +33,34 @@ export function FiltersDialog({
     sourceImageData,
     onPreviewChange,
   })
+  const [isApplying, setIsApplying] = useState<boolean>(false)
 
   function handleCancel(): void {
+    if (isApplying) {
+      return
+    }
+
     // Cancel должен вернуть canvas к исходному snapshot, поэтому preview сбрасывается явно.
     onPreviewChange(null)
     onCancel()
   }
 
-  function handleApply(): void {
+  async function handleApply(): Promise<void> {
     // Apply выполняет финальную фильтрацию один раз. До этого пользователь видит
     // только временный preview, который не мутирует sourceImageData.
     onPreviewChange(null)
-    onApply(applyKernel3x3(sourceImageData, settings))
+    setIsApplying(true)
+    onProcessingChange?.(true)
+
+    try {
+      onApply(await applyKernel3x3InWorker(sourceImageData, settings))
+    } catch {
+      // Ошибка Worker не должна закрывать dialog или записывать неполный результат.
+      onPreviewChange(null)
+    } finally {
+      setIsApplying(false)
+      onProcessingChange?.(false)
+    }
   }
 
   return (
@@ -141,17 +161,23 @@ export function FiltersDialog({
           Preview
         </label>
 
-        {isProcessing ? <div className="filter-processing">Processing preview...</div> : null}
+        <OperationLoader active={isProcessing || isApplying} label={isApplying ? 'Applying filter...' : 'Processing preview...'} />
 
         <footer className="filter-actions">
-          <button type="button" onClick={resetSettings}>
+          <button type="button" disabled={isApplying} onClick={resetSettings}>
             Reset
           </button>
-          <button type="button" onClick={handleCancel}>
+          <button type="button" disabled={isApplying} onClick={handleCancel}>
             Cancel
           </button>
-          <button type="button" onClick={handleApply}>
-            Apply
+          <button
+            type="button"
+            disabled={isApplying}
+            onClick={() => {
+              void handleApply()
+            }}
+          >
+            {isApplying ? 'Applying...' : 'Apply'}
           </button>
         </footer>
       </div>

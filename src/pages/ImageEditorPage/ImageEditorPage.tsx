@@ -29,6 +29,10 @@ import { ImageCanvas } from "../../features/image-viewer/ui/ImageCanvas";
 import type { ImageSize } from "../../shared/types/imageSize";
 import "./ImageEditorPage.css";
 
+type CanvasOperationScope = "levels" | "filters" | "resize";
+
+type CanvasOperationState = Partial<Record<CanvasOperationScope, string>>;
+
 export function ImageEditorPage(): JSX.Element {
   // Page-слой хранит состояние редактора и связывает features между собой.
   // Сами алгоритмы обработки пикселей остаются в lib-модулях конкретных features.
@@ -43,7 +47,35 @@ export function ImageEditorPage(): JSX.Element {
   const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState<boolean>(false);
   const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
+  const [canvasOperations, setCanvasOperations] = useState<CanvasOperationState>({});
   const [error, setError] = useState<FileProcessingError | null>(null);
+
+  function showLoader(scope: CanvasOperationScope, label: string): void {
+    setCanvasOperations((currentOperations: CanvasOperationState): CanvasOperationState => ({
+      ...currentOperations,
+      [scope]: label,
+    }));
+  }
+
+  function hideLoader(scope: CanvasOperationScope): void {
+    setCanvasOperations((currentOperations: CanvasOperationState): CanvasOperationState => {
+      const nextOperations: CanvasOperationState = { ...currentOperations };
+      delete nextOperations[scope];
+
+      return nextOperations;
+    });
+  }
+
+  function setOperationPending(scope: CanvasOperationScope, isPending: boolean, label: string): void {
+    // Page-слой ведет несколько независимых canvas-операций, чтобы один завершившийся Worker
+    // не скрывал loader другой операции, которая еще выполняется.
+    if (isPending) {
+      showLoader(scope, label);
+      return;
+    }
+
+    hideLoader(scope);
+  }
 
   function handleImageLoaded(nextImage: EditableImage): void {
     // При загрузке нового изображения рассчитываем стартовый scale от доступного viewport,
@@ -62,6 +94,7 @@ export function ImageEditorPage(): JSX.Element {
     setIsResizeDialogOpen(false);
     setIsFiltersDialogOpen(false);
     setColorPickerResult(null);
+    setCanvasOperations({});
     setError(null);
   }
 
@@ -163,6 +196,8 @@ export function ImageEditorPage(): JSX.Element {
 
     return applyChannelsToImageData(baseImageData, channels);
   }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
+  const canvasOperationLabels: readonly string[] = Object.values(canvasOperations);
+  const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image...";
 
   return (
     <main className="image-editor">
@@ -217,6 +252,8 @@ export function ImageEditorPage(): JSX.Element {
             displayScalePercent={displayScalePercent}
             imageData={displayedImageData}
             isColorPickerActive={isColorPickerActive}
+            isProcessing={canvasOperationLabels.length > 0}
+            processingLabel={canvasProcessingLabel}
             onCanvasClick={handleCanvasPick}
             onViewportSizeChange={setCanvasViewportSize}
           />
@@ -238,6 +275,9 @@ export function ImageEditorPage(): JSX.Element {
           sourceImageData={image.imageData}
           onApply={handleLevelsApply}
           onCancel={handleLevelsCancel}
+          onProcessingChange={(isPending: boolean) => {
+            setOperationPending("levels", isPending, "Applying Levels...");
+          }}
           onPreviewChange={setLevelsPreviewImageData}
         />
       ) : null}
@@ -250,6 +290,9 @@ export function ImageEditorPage(): JSX.Element {
           onCancel={() => {
             setIsResizeDialogOpen(false);
           }}
+          onProcessingChange={(isPending: boolean) => {
+            setOperationPending("resize", isPending, "Resizing image...");
+          }}
         />
       ) : null}
 
@@ -261,6 +304,9 @@ export function ImageEditorPage(): JSX.Element {
           onCancel={() => {
             setFilterPreviewImageData(null);
             setIsFiltersDialogOpen(false);
+          }}
+          onProcessingChange={(isPending: boolean) => {
+            setOperationPending("filters", isPending, "Applying filter...");
           }}
           onPreviewChange={setFilterPreviewImageData}
         />

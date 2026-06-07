@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react'
+import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import { drawImageDataToCanvas } from '../lib/canvasUtils'
 import type { ImageSize } from '../../../shared/types/imageSize'
 
@@ -7,6 +8,8 @@ interface ImageCanvasProps {
   readonly imageData: ImageData | null
   readonly displayScalePercent: number
   readonly isColorPickerActive?: boolean
+  readonly isProcessing?: boolean
+  readonly processingLabel?: string
   readonly onCanvasClick?: (event: MouseEvent, canvas: HTMLCanvasElement) => void
   readonly onViewportSizeChange?: (size: ImageSize) => void
 }
@@ -15,6 +18,8 @@ export function ImageCanvas({
   imageData,
   displayScalePercent,
   isColorPickerActive = false,
+  isProcessing = false,
+  processingLabel = 'Processing image...',
   onCanvasClick,
   onViewportSizeChange,
 }: ImageCanvasProps): JSX.Element {
@@ -90,6 +95,7 @@ export function ImageCanvas({
       {imageData === null ? (
         <div className="canvas-placeholder">Open PNG, JPG/JPEG or GB7 image</div>
       ) : null}
+      <OperationLoader active={isProcessing} label={processingLabel} variant="overlay" />
       <canvas
         className={[
           imageData === null ? 'image-canvas image-canvas--empty' : 'image-canvas',

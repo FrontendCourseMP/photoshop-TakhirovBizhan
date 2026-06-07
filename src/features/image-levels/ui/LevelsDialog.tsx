@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
-import { calculateHistogram } from '../../histogram/lib/calculateHistogram'
 import { HistogramCanvas } from '../../histogram/ui/HistogramCanvas'
 import type { HistogramData, HistogramMode } from '../../histogram/types'
-import { applyLevels } from '../lib/applyLevels'
+import { applyLevelsInWorker, calculateHistogramInWorker } from '../../image-processing-worker/workerClient'
 import {
   BLACK_POINT_RANGE,
   DEFAULT_LEVELS_STATE,
@@ -19,6 +18,7 @@ interface LevelsDialogProps {
   readonly onPreviewChange: (preview: ImageData | null) => void
   readonly onApply: (imageData: ImageData) => void
   readonly onCancel: () => void
+  readonly onProcessingChange?: (isPending: boolean) => void
 }
 
 const channelLabels: Readonly<Record<LevelsChannel, string>> = {
@@ -34,6 +34,7 @@ export function LevelsDialog({
   onPreviewChange,
   onApply,
   onCancel,
+  onProcessingChange,
 }: LevelsDialogProps): JSX.Element {
   // Dialog хранит только UI-состояние Levels: выбранный канал, режим histogram,
   // включенность preview и настройки каждого канала. Обработка пикселей остается в lib.
@@ -42,11 +43,51 @@ export function LevelsDialog({
   const [histogramMode, setHistogramMode] = useState<HistogramMode>('linear')
   const [previewEnabled, setPreviewEnabled] = useState<boolean>(true)
   const [levelsState, setLevelsState] = useState<LevelsState>(DEFAULT_LEVELS_STATE)
+  const [histogramState, setHistogramState] = useState<{
+    readonly sourceImageData: ImageData | null
+    readonly selectedChannel: LevelsChannel | null
+    readonly histogram: HistogramData
+  }>({
+    sourceImageData: null,
+    selectedChannel: null,
+    histogram: new Uint32Array(256),
+  })
+  const [isApplying, setIsApplying] = useState<boolean>(false)
+  const histogramTaskIdRef = useRef<number>(0)
   const selectedSettings: LevelsSettings = levelsState[selectedChannel]
-  const histogram: HistogramData = useMemo((): HistogramData => {
+  const histogram: HistogramData =
+    histogramState.sourceImageData === sourceImageData && histogramState.selectedChannel === selectedChannel
+      ? histogramState.histogram
+      : new Uint32Array(256)
+  useEffect((): (() => void) => {
+    const taskId: number = histogramTaskIdRef.current + 1
+    histogramTaskIdRef.current = taskId
+
     // Histogram зависит только от исходного snapshot и выбранного канала.
-    // Она не строится по preview, чтобы пользователь видел распределение исходных тонов.
-    return calculateHistogram(sourceImageData, selectedChannel)
+    // Расчет bins вынесен в Worker, а canvas-отрисовка остается в UI-потоке.
+    void calculateHistogramInWorker(sourceImageData, selectedChannel)
+      .then((nextHistogram: HistogramData): void => {
+        if (histogramTaskIdRef.current === taskId) {
+          setHistogramState({
+            sourceImageData,
+            selectedChannel,
+            histogram: nextHistogram,
+          })
+        }
+      })
+      .catch((): void => {
+        if (histogramTaskIdRef.current === taskId) {
+          setHistogramState({
+            sourceImageData,
+            selectedChannel,
+            histogram: new Uint32Array(256),
+          })
+        }
+      })
+
+    return (): void => {
+      histogramTaskIdRef.current += 1
+    }
   }, [selectedChannel, sourceImageData])
 
   // Realtime preview вынесен в hook: компонент только передает настройки,
@@ -113,16 +154,32 @@ export function LevelsDialog({
   }
 
   function handleCancel(): void {
+    if (isApplying) {
+      return
+    }
+
     // Cancel закрывает dialog и явно сбрасывает preview, чтобы canvas вернулся к snapshot.
     onPreviewChange(null)
     onCancel()
   }
 
-  function handleApply(): void {
+  async function handleApply(): Promise<void> {
     // Apply пересчитывает итоговое изображение один раз и передает его page-слою
     // как новое постоянное состояние редактора.
     onPreviewChange(null)
-    onApply(applyLevels(sourceImageData, levelsState))
+    setIsApplying(true)
+    onProcessingChange?.(true)
+
+    try {
+      onApply(await applyLevelsInWorker(sourceImageData, levelsState))
+    } catch {
+      // При ошибке Worker не закрываем dialog и не применяем частичный результат.
+      // Canvas остается в исходном состоянии, потому что preview уже сброшен.
+      onPreviewChange(null)
+    } finally {
+      setIsApplying(false)
+      onProcessingChange?.(false)
+    }
   }
 
   return (
@@ -130,7 +187,7 @@ export function LevelsDialog({
       <form className="levels-dialog__content" method="dialog">
         <header className="levels-dialog__header">
           <h2>Levels</h2>
-          <span>Input levels with LUT preview</span>
+          <span>Input levels with canvas preview</span>
         </header>
 
         <div className="levels-dialog__row">
@@ -221,18 +278,24 @@ export function LevelsDialog({
                 setPreviewEnabled(event.currentTarget.checked)
               }}
             />
-            Preview
+            Preview on canvas
           </label>
 
           <div className="levels-dialog__actions">
-            <button type="button" onClick={handleReset}>
+            <button type="button" disabled={isApplying} onClick={handleReset}>
               Reset
             </button>
-            <button type="button" onClick={handleCancel}>
+            <button type="button" disabled={isApplying} onClick={handleCancel}>
               Cancel
             </button>
-            <button type="button" onClick={handleApply}>
-              Apply
+            <button
+              type="button"
+              disabled={isApplying}
+              onClick={() => {
+                void handleApply()
+              }}
+            >
+              {isApplying ? 'Applying...' : 'Apply'}
             </button>
           </div>
         </footer>

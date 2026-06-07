@@ -41,10 +41,18 @@ export function useFiltersDialog({
 
     // Фильтр применяется асинхронно, чтобы большие изображения не блокировали
     // React render и не задерживали ввод в полях dialog.
-    activeTaskRef.current = scheduleAsyncFilter(sourceImageData, settings, (preview: ImageData): void => {
-      setIsProcessing(false)
-      onPreviewChange(preview)
-    })
+    activeTaskRef.current = scheduleAsyncFilter(
+      sourceImageData,
+      settings,
+      (preview: ImageData): void => {
+        setIsProcessing(false)
+        onPreviewChange(preview)
+      },
+      (): void => {
+        setIsProcessing(false)
+        onPreviewChange(null)
+      },
+    )
 
     return (): void => {
       activeTaskRef.current?.cancel()
