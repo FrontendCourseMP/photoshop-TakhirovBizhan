@@ -21,7 +21,7 @@ export function ColorPickerInfo({ result }: ColorPickerInfoProps): JSX.Element {
     <section className="color-picker-info" aria-label="Color picker result">
       <div className="panel-heading">
         <h2>Пипетка</h2>
-        <span>Source color</span>
+        <span>Displayed color</span>
       </div>
 
       {result === null ? (

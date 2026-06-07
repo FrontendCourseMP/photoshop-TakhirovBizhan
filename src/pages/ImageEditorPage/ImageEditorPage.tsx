@@ -102,24 +102,6 @@ export function ImageEditorPage(): JSX.Element {
     setError(nextError);
   }
 
-  function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
-    // Пипетка работает только в активном режиме, поэтому обычные клики по canvas
-    // не создают побочных эффектов для остальных инструментов редактора.
-    if (!isColorPickerActive || image === null) {
-      return;
-    }
-
-    // Координаты переводятся из CSS-пространства canvas в реальные координаты ImageData.
-    // Это важно при масштабировании изображения через displayScalePercent.
-    const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(event, canvas);
-
-    if (coordinates === null) {
-      return;
-    }
-
-    setColorPickerResult(pickPixelColor(image.imageData, coordinates));
-  }
-
   function handleLevelsCancel(): void {
     // Cancel откатывает временный preview: исходное image.imageData остается неизменным.
     setLevelsPreviewImageData(null);
@@ -198,6 +180,24 @@ export function ImageEditorPage(): JSX.Element {
   }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
   const canvasOperationLabels: readonly string[] = Object.values(canvasOperations);
   const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image...";
+
+  function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
+    // Пипетка работает только в активном режиме, поэтому обычные клики по canvas
+    // не создают побочных эффектов для остальных инструментов редактора.
+    if (!isColorPickerActive || displayedImageData === null) {
+      return;
+    }
+
+    // Координаты переводятся из CSS-пространства canvas в реальные координаты ImageData.
+    // Это важно при масштабировании изображения через displayScalePercent.
+    const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(event, canvas);
+
+    if (coordinates === null) {
+      return;
+    }
+
+    setColorPickerResult(pickPixelColor(displayedImageData, coordinates, "displayed"));
+  }
 
   return (
     <main className="image-editor">
