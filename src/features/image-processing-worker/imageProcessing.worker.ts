@@ -7,6 +7,7 @@ import type {
   ImageProcessingWorkerRequest,
   ImageProcessingWorkerResponse,
   ImageProcessingWorkerResult,
+  LevelsPreviewWorkerResult,
 } from './types'
 
 interface ImageProcessingWorkerGlobalScope {
@@ -49,6 +50,23 @@ function runImageProcessingTask(request: ImageProcessingWorkerRequest): ImagePro
     return applyLevels(request.source, request.levelsState)
   }
 
+  if (request.type === 'APPLY_LEVELS_PREVIEW') {
+    // Preview и histogram считаются из одного и того же ImageData.
+    // Так UI не может показать canvas от одних настроек, а histogram от других.
+    const imageData: ImageData = applyLevels(request.source, request.levelsState)
+
+    return {
+      imageData,
+      histogram: calculateHistogram(imageData, request.histogramChannel),
+    }
+  }
+
+  if (request.type === 'BUILD_LEVELS_HISTOGRAM') {
+    // Histogram Levels должен отражать не исходный snapshot, а результат текущих
+    // настроек black/gamma/white. Поэтому сначала строим preview ImageData в Worker.
+    return calculateHistogram(applyLevels(request.source, request.levelsState), request.channel)
+  }
+
   if (request.type === 'APPLY_3X3_FILTER') {
     return applyKernel3x3(request.source, request.settings)
   }
@@ -73,7 +91,21 @@ function collectTransferables(result: ImageProcessingWorkerResult): Transferable
     return [result.buffer]
   }
 
+  if (isLevelsPreviewWorkerResult(result)) {
+    return [getImageDataBuffer(result.imageData), result.histogram.buffer]
+  }
+
   return result.map((preview): Transferable => getImageDataBuffer(preview.imageData))
+}
+
+function isLevelsPreviewWorkerResult(result: ImageProcessingWorkerResult): result is LevelsPreviewWorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    !(result instanceof ImageData) &&
+    !(result instanceof Uint32Array) &&
+    !Array.isArray(result)
+  )
 }
 
 function getImageDataBuffer(imageData: ImageData): ArrayBuffer {

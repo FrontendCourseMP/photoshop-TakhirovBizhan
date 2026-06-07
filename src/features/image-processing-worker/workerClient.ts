@@ -8,6 +8,7 @@ import type {
   ImageProcessingWorkerRequest,
   ImageProcessingWorkerResponse,
   ImageProcessingWorkerResult,
+  LevelsPreviewWorkerResult,
 } from './types'
 
 interface PreparedImageData {
@@ -37,6 +38,44 @@ export function applyLevelsInWorker(source: ImageData, levelsState: LevelsState)
     },
     preparedSource.transfer,
   ).then(assertImageDataResult)
+}
+
+export function calculateLevelsHistogramInWorker(
+  source: ImageData,
+  levelsState: LevelsState,
+  channel: HistogramChannel,
+): Promise<HistogramData> {
+  const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
+
+  return runWorkerTask(
+    {
+      taskId: createTaskId(),
+      type: 'BUILD_LEVELS_HISTOGRAM',
+      source: preparedSource.imageData,
+      levelsState,
+      channel,
+    },
+    preparedSource.transfer,
+  ).then(assertHistogramResult)
+}
+
+export function applyLevelsPreviewInWorker(
+  source: ImageData,
+  levelsState: LevelsState,
+  histogramChannel: HistogramChannel,
+): Promise<LevelsPreviewWorkerResult> {
+  const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
+
+  return runWorkerTask(
+    {
+      taskId: createTaskId(),
+      type: 'APPLY_LEVELS_PREVIEW',
+      source: preparedSource.imageData,
+      levelsState,
+      histogramChannel,
+    },
+    preparedSource.transfer,
+  ).then(assertLevelsPreviewResult)
 }
 
 export function applyKernel3x3InWorker(source: ImageData, settings: FilterSettings): Promise<ImageData> {
@@ -193,6 +232,24 @@ function assertHistogramResult(result: ImageProcessingWorkerResult): HistogramDa
   }
 
   throw new Error('Worker returned an unexpected histogram result.')
+}
+
+function assertLevelsPreviewResult(result: ImageProcessingWorkerResult): LevelsPreviewWorkerResult {
+  if (isLevelsPreviewWorkerResult(result)) {
+    return result
+  }
+
+  throw new Error('Worker returned an unexpected Levels preview result.')
+}
+
+function isLevelsPreviewWorkerResult(result: ImageProcessingWorkerResult): result is LevelsPreviewWorkerResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    !(result instanceof ImageData) &&
+    !(result instanceof Uint32Array) &&
+    !Array.isArray(result)
+  )
 }
 
 function assertChannelPreviewsResult(result: ImageProcessingWorkerResult): readonly ChannelPreview[] {

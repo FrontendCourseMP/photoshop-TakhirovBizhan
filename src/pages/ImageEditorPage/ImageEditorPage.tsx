@@ -258,29 +258,29 @@ export function ImageEditorPage(): JSX.Element {
             onViewportSizeChange={setCanvasViewportSize}
           />
           <div className="inspector-panel">
-            <ChannelsPanel
-              channels={channels}
-              onChannelsChange={setChannels}
-              sourceImageData={image?.imageData ?? null}
-            />
+            {image !== null && isLevelsDialogOpen ? (
+              <LevelsDialog
+                sourceImageData={image.imageData}
+                onApply={handleLevelsApply}
+                onCancel={handleLevelsCancel}
+                onProcessingChange={(isPending: boolean) => {
+                  setOperationPending("levels", isPending, "Applying Levels...");
+                }}
+                onPreviewChange={setLevelsPreviewImageData}
+              />
+            ) : (
+              <ChannelsPanel
+                channels={channels}
+                onChannelsChange={setChannels}
+                sourceImageData={image?.imageData ?? null}
+              />
+            )}
             <ColorPickerInfo result={colorPickerResult} />
           </div>
         </div>
       </section>
 
       <ImageStatusBar displayScalePercent={displayScalePercent} metadata={image?.metadata ?? null} />
-
-      {image !== null && isLevelsDialogOpen ? (
-        <LevelsDialog
-          sourceImageData={image.imageData}
-          onApply={handleLevelsApply}
-          onCancel={handleLevelsCancel}
-          onProcessingChange={(isPending: boolean) => {
-            setOperationPending("levels", isPending, "Applying Levels...");
-          }}
-          onPreviewChange={setLevelsPreviewImageData}
-        />
-      ) : null}
 
       {image !== null ? (
         <ResizeImageDialog

@@ -10,6 +10,8 @@ const HISTOGRAM_COLOR: HistogramColor = {
   fill: 'rgba(35, 122, 114, 0.72)',
 }
 
+const HISTOGRAM_DISPLAY_PERCENTILE = 0.96
+
 /**
  * Рисует столбцы гистограммы напрямую на canvas, чтобы не добавлять chart-зависимости и удешевить перерисовку.
  */
@@ -30,7 +32,7 @@ export function drawHistogram(
   const values: readonly number[] = Array.from(histogram, (value: number): number =>
     mode === 'log' ? Math.log1p(value) : value,
   )
-  const maxValue: number = Math.max(...values, 1)
+  const maxValue: number = getDisplayMaxValue(values)
   const barWidth: number = width / histogram.length
 
   context.clearRect(0, 0, width, height)
@@ -41,7 +43,7 @@ export function drawHistogram(
 
   for (let binIndex = 0; binIndex < histogram.length; binIndex += 1) {
     // Даже одиночные значения рисуются высотой минимум 1px, иначе тонкие детали гистограммы пропадают.
-    const normalizedHeight: number = values[binIndex] / maxValue
+    const normalizedHeight: number = Math.min(values[binIndex] / maxValue, 1)
     const barHeight: number = Math.max(normalizedHeight * height, values[binIndex] > 0 ? 1 : 0)
     const x: number = binIndex * barWidth
     const y: number = height - barHeight
@@ -50,4 +52,22 @@ export function drawHistogram(
   }
 
   context.strokeRect(0.5, 0.5, width - 1, height - 1)
+}
+
+function getDisplayMaxValue(values: readonly number[]): number {
+  const nonZeroValues: number[] = values
+    .filter((value: number): boolean => value > 0)
+    .sort((left: number, right: number): number => left - right)
+
+  if (nonZeroValues.length === 0) {
+    return 1
+  }
+
+  // После Levels крайние bins 0/255 часто получают очень большие пики из-за clipping.
+  // Если нормализовать график по такому одиночному пику, остальные уровни визуально
+  // превращаются в почти пустую линию. Percentile-масштаб сохраняет пики, но не дает
+  // им скрыть распределение тонов, как это делают графические редакторы.
+  const percentileIndex: number = Math.max(Math.floor((nonZeroValues.length - 1) * HISTOGRAM_DISPLAY_PERCENTILE), 0)
+
+  return Math.max(nonZeroValues[percentileIndex], 1)
 }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
+import { createRafPreviewScheduler, type RafPreviewScheduler } from '../../../shared/performance/rafScheduler'
 import { HistogramCanvas } from '../../histogram/ui/HistogramCanvas'
 import type { HistogramData, HistogramMode } from '../../histogram/types'
-import { applyLevelsInWorker, calculateHistogramInWorker } from '../../image-processing-worker/workerClient'
+import { applyLevelsInWorker, applyLevelsPreviewInWorker } from '../../image-processing-worker/workerClient'
 import {
   BLACK_POINT_RANGE,
   DEFAULT_LEVELS_STATE,
@@ -10,7 +11,6 @@ import {
   LEVELS_CHANNELS,
   WHITE_POINT_RANGE,
 } from '../model/defaultLevels'
-import { useLevelsPreview } from '../hooks/useLevelsPreview'
 import type { LevelsChannel, LevelsSettings, LevelsState } from '../types'
 
 interface LevelsDialogProps {
@@ -38,7 +38,6 @@ export function LevelsDialog({
 }: LevelsDialogProps): JSX.Element {
   // Dialog хранит только UI-состояние Levels: выбранный канал, режим histogram,
   // включенность preview и настройки каждого канала. Обработка пикселей остается в lib.
-  const dialogRef = useRef<HTMLDialogElement | null>(null)
   const [selectedChannel, setSelectedChannel] = useState<LevelsChannel>('master')
   const [histogramMode, setHistogramMode] = useState<HistogramMode>('linear')
   const [previewEnabled, setPreviewEnabled] = useState<boolean>(true)
@@ -53,61 +52,61 @@ export function LevelsDialog({
     histogram: new Uint32Array(256),
   })
   const [isApplying, setIsApplying] = useState<boolean>(false)
-  const histogramTaskIdRef = useRef<number>(0)
+  const previewTaskIdRef = useRef<number>(0)
+  const schedulerRef = useRef<RafPreviewScheduler | null>(null)
   const selectedSettings: LevelsSettings = levelsState[selectedChannel]
   const histogram: HistogramData =
     histogramState.sourceImageData === sourceImageData && histogramState.selectedChannel === selectedChannel
       ? histogramState.histogram
       : new Uint32Array(256)
-  useEffect((): (() => void) => {
-    const taskId: number = histogramTaskIdRef.current + 1
-    histogramTaskIdRef.current = taskId
+  if (schedulerRef.current === null) {
+    schedulerRef.current = createRafPreviewScheduler()
+  }
 
-    // Histogram зависит только от исходного snapshot и выбранного канала.
-    // Расчет bins вынесен в Worker, а canvas-отрисовка остается в UI-потоке.
-    void calculateHistogramInWorker(sourceImageData, selectedChannel)
-      .then((nextHistogram: HistogramData): void => {
-        if (histogramTaskIdRef.current === taskId) {
-          setHistogramState({
-            sourceImageData,
-            selectedChannel,
-            histogram: nextHistogram,
-          })
-        }
-      })
-      .catch((): void => {
-        if (histogramTaskIdRef.current === taskId) {
-          setHistogramState({
-            sourceImageData,
-            selectedChannel,
-            histogram: new Uint32Array(256),
-          })
-        }
-      })
+  useEffect((): (() => void) => {
+    const scheduler: RafPreviewScheduler = schedulerRef.current ?? createRafPreviewScheduler()
+    schedulerRef.current = scheduler
+    const taskId: number = previewTaskIdRef.current + 1
+    previewTaskIdRef.current = taskId
+
+    if (!previewEnabled) {
+      onPreviewChange(null)
+    }
+
+    scheduler.schedulePreviewUpdate((): void => {
+      // Preview canvas и histogram считаются одной Worker-задачей, чтобы оба результата
+      // соответствовали одним и тем же настройкам Levels и не расходились из-за гонок.
+      void applyLevelsPreviewInWorker(sourceImageData, levelsState, selectedChannel)
+        .then((result): void => {
+          if (previewTaskIdRef.current === taskId) {
+            setHistogramState({
+              sourceImageData,
+              selectedChannel,
+              histogram: result.histogram,
+            })
+
+            if (previewEnabled) {
+              onPreviewChange(result.imageData)
+            }
+          }
+        })
+        .catch((): void => {
+          if (previewTaskIdRef.current === taskId) {
+            setHistogramState({
+              sourceImageData,
+              selectedChannel,
+              histogram: new Uint32Array(256),
+            })
+            onPreviewChange(null)
+          }
+        })
+    })
 
     return (): void => {
-      histogramTaskIdRef.current += 1
+      previewTaskIdRef.current += 1
+      scheduler.cancelPreviewUpdate()
     }
-  }, [selectedChannel, sourceImageData])
-
-  // Realtime preview вынесен в hook: компонент только передает настройки,
-  // а requestAnimationFrame scheduling и применение LUT выполняются вне JSX.
-  useLevelsPreview({
-    sourceImageData,
-    levelsState,
-    previewEnabled,
-    onPreviewChange,
-  })
-
-  useEffect((): void => {
-    // showModal вызывается после mount, потому что native <dialog>
-    // должен уже существовать в DOM перед открытием модального режима.
-    const dialog: HTMLDialogElement | null = dialogRef.current
-
-    if (dialog !== null && !dialog.open) {
-      dialog.showModal()
-    }
-  }, [])
+  }, [levelsState, onPreviewChange, previewEnabled, selectedChannel, sourceImageData])
 
   function updateSelectedSettings(nextSettings: LevelsSettings): void {
     // Настройки хранятся отдельно для каждого канала, поэтому переключение Master/R/G/B/A
@@ -183,8 +182,8 @@ export function LevelsDialog({
   }
 
   return (
-    <dialog className="levels-dialog" ref={dialogRef} onCancel={handleCancel}>
-      <form className="levels-dialog__content" method="dialog">
+    <section className="levels-dialog" aria-label="Levels">
+      <div className="levels-dialog__content">
         <header className="levels-dialog__header">
           <h2>Levels</h2>
           <span>Input levels with canvas preview</span>
@@ -299,8 +298,8 @@ export function LevelsDialog({
             </button>
           </div>
         </footer>
-      </form>
-    </dialog>
+      </div>
+    </section>
   )
 }
 
