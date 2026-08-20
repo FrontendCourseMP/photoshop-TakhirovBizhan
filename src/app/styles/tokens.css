@@ -1,0 +1,67 @@
+:root {
+  --surface-app: #e8edef;
+  --surface-0: #ffffff;
+  --surface-1: #f7f9fa;
+  --surface-2: #eff3f5;
+  --surface-3: #e4eaed;
+  --surface-canvas: #dee4e7;
+
+  --border-subtle: #e5eaed;
+  --border: #d3dbdf;
+  --border-strong: #b4c0c6;
+
+  --text-primary: #16232a;
+  --text-secondary: #556670;
+  --text-muted: #7f8d95;
+  --text-inverse: #f6f9fa;
+
+  --accent: #0f766e;
+  --accent-hover: #0b5f59;
+  --accent-soft: #e6f4f1;
+  --accent-border: #93cec6;
+
+  --danger: #b42318;
+  --danger-soft: #fef4f2;
+  --danger-border: #f3b4ac;
+
+  --channel-red: #d64545;
+  --channel-green: #2f9e44;
+  --channel-blue: #2f6fd0;
+  --channel-alpha: #6b7a83;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 28px;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+
+  --shadow-xs: 0 1px 1px rgba(22, 35, 42, 0.05);
+  --shadow-sm: 0 1px 3px rgba(22, 35, 42, 0.08);
+  --shadow-md: 0 6px 18px rgba(22, 35, 42, 0.1);
+  --shadow-lg: 0 18px 48px rgba(22, 35, 42, 0.22);
+
+  --control-height: 30px;
+  --control-height-lg: 34px;
+  --topbar-height: 52px;
+
+  --transition: 120ms ease;
+
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Consolas, "Liberation Mono", monospace;
+
+  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px rgba(15, 118, 110, 0.45);
+}
