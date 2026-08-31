@@ -6,9 +6,12 @@ interface HistogramColor {
 }
 
 const HISTOGRAM_COLOR: HistogramColor = {
-  stroke: '#132126',
-  fill: 'rgba(35, 122, 114, 0.72)',
+  stroke: 'rgba(22, 35, 42, 0.12)',
+  fill: 'rgba(15, 118, 110, 0.78)',
 }
+
+// Вертикальные направляющие на четвертях диапазона помогают читать положение black/white точек.
+const HISTOGRAM_GUIDE_STOPS: readonly number[] = [0.25, 0.5, 0.75]
 
 const HISTOGRAM_DISPLAY_PERCENTILE = 0.96
 
@@ -36,10 +39,22 @@ export function drawHistogram(
   const barWidth: number = width / histogram.length
 
   context.clearRect(0, 0, width, height)
-  context.fillStyle = '#f7fafb'
+  context.fillStyle = '#ffffff'
   context.fillRect(0, 0, width, height)
-  context.fillStyle = HISTOGRAM_COLOR.fill
+
   context.strokeStyle = HISTOGRAM_COLOR.stroke
+  context.lineWidth = 1
+
+  for (const stop of HISTOGRAM_GUIDE_STOPS) {
+    const guideX: number = Math.round(width * stop) + 0.5
+
+    context.beginPath()
+    context.moveTo(guideX, 0)
+    context.lineTo(guideX, height)
+    context.stroke()
+  }
+
+  context.fillStyle = HISTOGRAM_COLOR.fill
 
   for (let binIndex = 0; binIndex < histogram.length; binIndex += 1) {
     // Даже одиночные значения рисуются высотой минимум 1px, иначе тонкие детали гистограммы пропадают.
@@ -50,8 +65,6 @@ export function drawHistogram(
 
     context.fillRect(x, y, Math.ceil(barWidth), barHeight)
   }
-
-  context.strokeRect(0.5, 0.5, width - 1, height - 1)
 }
 
 function getDisplayMaxValue(values: readonly number[]): number {

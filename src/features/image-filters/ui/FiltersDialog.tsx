@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Modal } from '../../../shared/ui/Modal'
+import { Icon } from '../../../shared/ui/Icon'
 import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import { applyKernel3x3InWorker } from '../../image-processing-worker/workerClient'
 import { useFiltersDialog } from '../hooks/useFiltersDialog'
@@ -34,6 +35,9 @@ export function FiltersDialog({
     onPreviewChange,
   })
   const [isApplying, setIsApplying] = useState<boolean>(false)
+  // Алгоритм заменяет нулевой и нечисловой divisor на 1, поэтому поле должно об этом сказать.
+  const divisor: number = settings.divisor ?? 1
+  const isDivisorApplied: boolean = Number.isFinite(divisor) && divisor !== 0
 
   function handleCancel(): void {
     if (isApplying) {
@@ -64,9 +68,14 @@ export function FiltersDialog({
   }
 
   return (
-    <Modal open={open} title="Filters 3x3" onClose={handleCancel}>
-      <div className="filters-dialog">
-        <div className="filters-grid">
+    <Modal
+      open={open}
+      title="Convolution filter"
+      subtitle="A 3 × 3 kernel applied to the selected channels"
+      onClose={handleCancel}
+    >
+      <div className="filters">
+        <div className="form-row">
           <FilterPresetsSelect
             onPresetSelect={(preset: KernelPreset) => {
               // Preset заменяет только параметры свертки, сохраняя остальные настройки dialog
@@ -91,48 +100,59 @@ export function FiltersDialog({
           />
         </div>
 
-        <KernelGrid
-          kernel={settings.kernel}
-          onKernelChange={(kernel: Kernel3x3) => {
-            // Ручное изменение kernel сразу запускает preview через hook.
-            updateSettings({
-              ...settings,
-              kernel,
-            })
-          }}
-        />
+        <div className="filters__kernel">
+          <div className="field">
+            <span className="field__label">Kernel</span>
+            <KernelGrid
+              kernel={settings.kernel}
+              onKernelChange={(kernel: Kernel3x3) => {
+                // Ручное изменение kernel сразу запускает preview через hook.
+                updateSettings({
+                  ...settings,
+                  kernel,
+                })
+              }}
+            />
+          </div>
 
-        <div className="filters-grid">
-          <label className="filter-field">
-            <span>Divisor</span>
-            <input
-              step={0.1}
-              type="number"
-              value={settings.divisor ?? 1}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                // Divisor нормализует сумму свертки; в lib есть защита от нулевого значения.
-                updateSettings({
-                  ...settings,
-                  divisor: Number(event.currentTarget.value),
-                })
-              }}
-            />
-          </label>
-          <label className="filter-field">
-            <span>Offset</span>
-            <input
-              step={1}
-              type="number"
-              value={settings.offset ?? 0}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                // Offset добавляется после свертки и нужен для фильтров вроде emboss.
-                updateSettings({
-                  ...settings,
-                  offset: Number(event.currentTarget.value),
-                })
-              }}
-            />
-          </label>
+          <div className="filters__normalization">
+            <label className="field">
+              <span className="field__label">Divisor</span>
+              <input
+                className="input"
+                step={0.1}
+                type="number"
+                value={settings.divisor ?? 1}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  updateSettings({
+                    ...settings,
+                    divisor: Number(event.currentTarget.value),
+                  })
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Offset</span>
+              <input
+                className="input"
+                step={1}
+                type="number"
+                value={settings.offset ?? 0}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  // Offset добавляется после свертки и нужен для фильтров вроде emboss.
+                  updateSettings({
+                    ...settings,
+                    offset: Number(event.currentTarget.value),
+                  })
+                }}
+              />
+            </label>
+            <p className="hint">
+              {isDivisorApplied
+                ? 'Result = (sum ÷ divisor) + offset'
+                : 'A divisor of 0 is ignored — the raw sum is used.'}
+            </p>
+          </div>
         </div>
 
         <FilterChannels
@@ -146,39 +166,46 @@ export function FiltersDialog({
           }}
         />
 
-        <label className="filter-preview-toggle">
-          <input
-            checked={settings.previewEnabled}
-            type="checkbox"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              // Выключенный preview сообщает page-слою null, и canvas показывает исходное imageData.
-              updateSettings({
-                ...settings,
-                previewEnabled: event.currentTarget.checked,
-              })
-            }}
-          />
-          Preview
-        </label>
+        <OperationLoader
+          active={isProcessing || isApplying}
+          label={isApplying ? 'Applying filter…' : 'Updating preview…'}
+        />
 
-        <OperationLoader active={isProcessing || isApplying} label={isApplying ? 'Applying filter...' : 'Processing preview...'} />
+        <footer className="dialog__footer">
+          <label className="checkbox">
+            <input
+              checked={settings.previewEnabled}
+              type="checkbox"
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                // Выключенный preview сообщает page-слою null, и canvas показывает исходное imageData.
+                updateSettings({
+                  ...settings,
+                  previewEnabled: event.currentTarget.checked,
+                })
+              }}
+            />
+            <span>Preview on canvas</span>
+          </label>
 
-        <footer className="filter-actions">
-          <button type="button" disabled={isApplying} onClick={resetSettings}>
-            Reset
-          </button>
-          <button type="button" disabled={isApplying} onClick={handleCancel}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={isApplying}
-            onClick={() => {
-              void handleApply()
-            }}
-          >
-            {isApplying ? 'Applying...' : 'Apply'}
-          </button>
+          <div className="dialog__actions">
+            <button className="btn btn--ghost" type="button" disabled={isApplying} onClick={resetSettings}>
+              <Icon name="reset" />
+              <span>Reset</span>
+            </button>
+            <button className="btn" type="button" disabled={isApplying} onClick={handleCancel}>
+              Cancel
+            </button>
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={isApplying}
+              onClick={() => {
+                void handleApply()
+              }}
+            >
+              {isApplying ? 'Applying…' : 'Apply'}
+            </button>
+          </div>
         </footer>
       </div>
     </Modal>

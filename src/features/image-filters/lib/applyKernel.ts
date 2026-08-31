@@ -10,13 +10,9 @@ const CHANNEL_TO_OFFSET: Readonly<Record<FilterChannel, number>> = {
 }
 
 /**
- * Применяет свертку 3x3 к выбранным каналам, не меняя исходный ImageData.
- * Невыбранные каналы копируются напрямую, чтобы фильтр не ломал существующий alpha/RGB pipeline.
- */
-/**
- * Основная точка применения convolution-фильтра.
- * Функция работает только с новым выходным буфером: source.data остается неизменным,
- * а выбранные пользователем каналы обрабатываются независимо от остальных.
+ * Применяет свертку 3x3 к выбранным каналам и возвращает новый ImageData.
+ * source.data не мутируется, а невыбранные каналы копируются напрямую,
+ * чтобы фильтр не ломал существующий alpha/RGB pipeline.
  */
 export function applyKernel3x3(source: ImageData, settings: FilterSettings): ImageData {
   const outputBuffer: ArrayBuffer = new ArrayBuffer(source.data.length)

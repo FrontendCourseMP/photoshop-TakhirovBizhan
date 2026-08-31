@@ -17,16 +17,19 @@ export function OperationLoader({
     return null
   }
 
-  const style: CSSProperties & { readonly '--operation-loader-delay': string } = {
-    '--operation-loader-delay': `${delayMs}ms`,
+  // Задержка появления через CSS-переменную скрывает мигание loader на быстрых операциях.
+  const style: CSSProperties & { readonly '--loader-delay': string } = {
+    '--loader-delay': `${delayMs}ms`,
   }
 
   return (
     <div
-      className={variant === 'overlay' ? 'operation-loader operation-loader--overlay' : 'operation-loader'}
+      className={variant === 'overlay' ? 'loader loader--overlay' : 'loader'}
       style={style}
+      role="status"
+      aria-live="polite"
     >
-      <span className="operation-loader__spinner" aria-hidden="true" />
+      <span className="loader__spinner" aria-hidden="true" />
       <span>{label}</span>
     </div>
   )

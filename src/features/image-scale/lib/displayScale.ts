@@ -1,6 +1,12 @@
 import { clamp } from '../../../shared/lib/math/clamp'
 import type { ImageSize } from '../../../shared/types/imageSize'
-import { MAX_DISPLAY_SCALE_PERCENT, MIN_DISPLAY_SCALE_PERCENT } from '../model/displayScaleConstants'
+import {
+  DISPLAY_SCALE_OPTIONS,
+  MAX_DISPLAY_SCALE_PERCENT,
+  MIN_DISPLAY_SCALE_PERCENT,
+} from '../model/displayScaleConstants'
+
+export type ZoomDirection = 1 | -1
 
 export function clampScalePercent(value: number): number {
   // Scale ограничивается единым диапазоном, чтобы controls и canvas
@@ -9,10 +15,42 @@ export function clampScalePercent(value: number): number {
 }
 
 /**
- * Вычисляет стартовый Display Scale так, чтобы изображение помещалось в рабочую область с отступом.
- * Физический размер ImageData не меняется: результат влияет только на отображение canvas.
+ * Возвращает следующий шаг zoom по списку пресетов.
+ * Шаги по кнопкам и колесу мыши совпадают с вариантами в select, чтобы значения не расходились.
+ */
+export function getZoomedScalePercent(currentPercent: number, direction: ZoomDirection): number {
+  const candidates: readonly number[] =
+    direction === 1
+      ? DISPLAY_SCALE_OPTIONS.filter((option: number): boolean => option > currentPercent)
+      : [...DISPLAY_SCALE_OPTIONS].reverse().filter((option: number): boolean => option < currentPercent)
+
+  return clampScalePercent(candidates[0] ?? currentPercent)
+}
+
+/**
+ * Список значений для select с добавленным текущим scale.
+ * Fit и колесо мыши дают произвольные проценты, которых нет среди пресетов.
+ */
+export function getScaleOptions(currentPercent: number): readonly number[] {
+  const options: Set<number> = new Set<number>([...DISPLAY_SCALE_OPTIONS, clampScalePercent(currentPercent)])
+
+  return [...options].sort((left: number, right: number): number => left - right)
+}
+
+/**
+ * Стартовый Display Scale при открытии файла и после resize.
+ * В отличие от Fit, не увеличивает изображение: 100% — верхняя граница, иначе уменьшенная
+ * картинка снова растянулась бы на всю область и результат операции был бы незаметен.
  */
 export function calculateInitialDisplayScale(imageSize: ImageSize, canvasSize: ImageSize, padding: number): number {
+  return Math.min(calculateFitScalePercent(imageSize, canvasSize, padding), 100)
+}
+
+/**
+ * Вписывает изображение в рабочую область с отступом, включая увеличение мелких файлов.
+ * Физический размер ImageData не меняется: результат влияет только на отображение canvas.
+ */
+export function calculateFitScalePercent(imageSize: ImageSize, canvasSize: ImageSize, padding: number): number {
   // Отступ вычитается с обеих сторон, чтобы изображение не упиралось в границы workspace.
   const availableWidth: number = Math.max(canvasSize.width - padding * 2, 1)
   const availableHeight: number = Math.max(canvasSize.height - padding * 2, 1)

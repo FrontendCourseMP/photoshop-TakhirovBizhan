@@ -8,17 +8,18 @@ interface EdgeHandlingSelectProps {
 
 export function EdgeHandlingSelect({ value, onChange }: EdgeHandlingSelectProps): JSX.Element {
   return (
-    <label className="filter-field">
-      <span>Edges</span>
+    <label className="field">
+      <span className="field__label">Edge handling</span>
       <select
+        className="select"
         value={value}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
           onChange(parseEdgeHandlingStrategy(event.currentTarget.value))
         }}
       >
-        <option value="copy">Copy nearest pixel</option>
-        <option value="black">Black fill</option>
-        <option value="white">White fill</option>
+        <option value="copy">Repeat the nearest pixel</option>
+        <option value="black">Pad with black</option>
+        <option value="white">Pad with white</option>
       </select>
     </label>
   )

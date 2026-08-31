@@ -24,9 +24,9 @@ export function ChannelPreview({ title, imageData, isInactive = false }: Channel
   }, [imageData])
 
   return (
-    <div className={isInactive ? 'channel-preview channel-preview--inactive' : 'channel-preview'}>
+    <figure className={isInactive ? 'channel-preview channel-preview--off' : 'channel-preview'}>
       <canvas className="channel-preview__canvas" ref={canvasRef} />
-      <span className="channel-preview__title">{title}</span>
-    </div>
+      <figcaption className="channel-preview__title">{title}</figcaption>
+    </figure>
   )
 }

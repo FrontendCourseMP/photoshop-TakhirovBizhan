@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Modal } from '../../../shared/ui/Modal'
+import { Icon } from '../../../shared/ui/Icon'
 import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import type { ImageSize } from '../../../shared/types/imageSize'
 import {
@@ -62,6 +63,7 @@ export function ResizeImageDialog({
     INTERPOLATION_ALGORITHMS.find(
       (algorithm: InterpolationAlgorithm): boolean => algorithm.id === settings.interpolationMethod,
     ) ?? INTERPOLATION_ALGORITHMS[0]
+  const unitLabel: string = settings.inputMode === 'percent' ? '%' : 'px'
 
   function handleCancel(): void {
     if (isApplying) {
@@ -167,87 +169,123 @@ export function ResizeImageDialog({
   }
 
   return (
-    <Modal open={open} title="Resize Image" onClose={handleCancel}>
-      <div className="resize-dialog">
-        <section className="resize-stats" aria-label="Resize statistics">
-          <StatItem label="Before" value={`${sourceSize.width} × ${sourceSize.height}`} />
-          <StatItem label="After" value={`${targetSize.width} × ${targetSize.height}`} />
-          <StatItem label="Pixels before" value={stats.beforePixels.toLocaleString('ru-RU')} />
-          <StatItem label="Pixels after" value={stats.afterPixels.toLocaleString('ru-RU')} />
-          <StatItem label="MP before" value={stats.beforeMegapixels.toString()} />
-          <StatItem label="MP after" value={stats.afterMegapixels.toString()} />
+    <Modal open={open} title="Resize image" subtitle="Interpolated resampling of the whole image" onClose={handleCancel}>
+      <div className="resize">
+        <section className="compare" aria-label="Resize summary">
+          <div className="compare__row compare__row--head">
+            <span />
+            <span>Before</span>
+            <span>After</span>
+          </div>
+          <CompareRow
+            label="Dimensions"
+            before={`${sourceSize.width} × ${sourceSize.height}`}
+            after={`${targetSize.width} × ${targetSize.height}`}
+          />
+          <CompareRow
+            label="Pixels"
+            before={stats.beforePixels.toLocaleString('en-US')}
+            after={stats.afterPixels.toLocaleString('en-US')}
+          />
+          <CompareRow
+            label="Megapixels"
+            before={`${stats.beforeMegapixels} MP`}
+            after={`${stats.afterMegapixels} MP`}
+          />
         </section>
 
-        <div className="resize-fields">
-          <label className="resize-field">
-            <span>Mode</span>
-            <select value={settings.inputMode} onChange={handleInputModeChange}>
-              <option value="pixels">Pixels</option>
-              <option value="percent">Percent</option>
-            </select>
-          </label>
+        <label className="field">
+          <span className="field__label">Input mode</span>
+          <select className="select" value={settings.inputMode} onChange={handleInputModeChange}>
+            <option value="pixels">Pixels</option>
+            <option value="percent">Percent of the original</option>
+          </select>
+        </label>
 
-          <ResizeNumberField label="Width" value={settings.width} onChange={handleWidthChange} />
-          <ResizeNumberField label="Height" value={settings.height} onChange={handleHeightChange} />
-
-          <label className="resize-checkbox">
-            <input
-              checked={settings.keepAspectRatio}
-              type="checkbox"
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                // Toggle меняет только связь размеров; текущие значения не пересчитываются
-                // до следующего изменения width или height.
-                setSettings({
-                  ...settings,
-                  keepAspectRatio: event.currentTarget.checked,
-                })
-              }}
-            />
-            Keep Aspect Ratio
-          </label>
-
-          <label className="resize-field">
-            <span>Interpolation Method</span>
-            <select
-              title={selectedAlgorithm.description}
-              value={settings.interpolationMethod}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                // Значение select проверяется вручную, чтобы в state попал только известный метод.
-                const method: InterpolationMethod =
-                  event.currentTarget.value === 'nearest-neighbor' ? 'nearest-neighbor' : 'bilinear'
-
-                setSettings({
-                  ...settings,
-                  interpolationMethod: method,
-                })
-              }}
-            >
-              {INTERPOLATION_ALGORITHMS.map((algorithm: InterpolationAlgorithm) => (
-                <option key={algorithm.id} value={algorithm.id}>
-                  {algorithm.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <p className="resize-tooltip">{selectedAlgorithm.description}</p>
-          {validation.message === null ? null : <p className="resize-error">{validation.message}</p>}
-          <OperationLoader active={isApplying} label="Resizing image..." />
-        </div>
-
-        <footer className="resize-actions">
-          <button type="button" disabled={isApplying} onClick={handleCancel}>
-            Cancel
-          </button>
+        <div className="size-fields">
+          <ResizeNumberField
+            label={`Width, ${unitLabel}`}
+            value={settings.width}
+            onChange={handleWidthChange}
+          />
           <button
+            className={settings.keepAspectRatio ? 'btn btn--icon btn--active' : 'btn btn--icon'}
             type="button"
-            disabled={!validation.ok || isApplying}
+            aria-pressed={settings.keepAspectRatio}
+            title="Keep aspect ratio"
+            aria-label="Keep aspect ratio"
             onClick={() => {
-              void handleApply()
+              // Toggle меняет только связь размеров; текущие значения не пересчитываются
+              // до следующего изменения width или height.
+              setSettings({
+                ...settings,
+                keepAspectRatio: !settings.keepAspectRatio,
+              })
             }}
           >
-            {isApplying ? 'Applying...' : 'Apply'}
+            <Icon name="link" />
           </button>
+          <ResizeNumberField
+            label={`Height, ${unitLabel}`}
+            value={settings.height}
+            onChange={handleHeightChange}
+          />
+        </div>
+
+        <p className="hint">
+          {settings.keepAspectRatio
+            ? 'Aspect ratio is locked: the second dimension follows the one you edit.'
+            : 'Width and height change independently.'}
+        </p>
+
+        <label className="field">
+          <span className="field__label">Interpolation</span>
+          <select
+            className="select"
+            value={settings.interpolationMethod}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+              // Значение select проверяется вручную, чтобы в state попал только известный метод.
+              const method: InterpolationMethod =
+                event.currentTarget.value === 'nearest-neighbor' ? 'nearest-neighbor' : 'bilinear'
+
+              setSettings({
+                ...settings,
+                interpolationMethod: method,
+              })
+            }}
+          >
+            {INTERPOLATION_ALGORITHMS.map((algorithm: InterpolationAlgorithm) => (
+              <option key={algorithm.id} value={algorithm.id}>
+                {algorithm.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <p className="callout">{selectedAlgorithm.description}</p>
+        {validation.message === null ? null : (
+          <p className="error-text" role="alert">
+            {validation.message}
+          </p>
+        )}
+        <OperationLoader active={isApplying} label="Resizing image…" />
+
+        <footer className="dialog__footer dialog__footer--end">
+          <div className="dialog__actions">
+            <button className="btn" type="button" disabled={isApplying} onClick={handleCancel}>
+              Cancel
+            </button>
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={!validation.ok || isApplying}
+              onClick={() => {
+                void handleApply()
+              }}
+            >
+              {isApplying ? 'Applying…' : 'Apply'}
+            </button>
+          </div>
         </footer>
       </div>
     </Modal>
@@ -262,9 +300,10 @@ interface ResizeNumberFieldProps {
 
 function ResizeNumberField({ label, value, onChange }: ResizeNumberFieldProps): JSX.Element {
   return (
-    <label className="resize-field">
-      <span>{label}</span>
+    <label className="field">
+      <span className="field__label">{label}</span>
       <input
+        className="input"
         min={1}
         type="number"
         value={value}
@@ -278,16 +317,18 @@ function ResizeNumberField({ label, value, onChange }: ResizeNumberFieldProps): 
   )
 }
 
-interface StatItemProps {
+interface CompareRowProps {
   readonly label: string
-  readonly value: string
+  readonly before: string
+  readonly after: string
 }
 
-function StatItem({ label, value }: StatItemProps): JSX.Element {
+function CompareRow({ label, before, after }: CompareRowProps): JSX.Element {
   return (
-    <div className="resize-stat-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="compare__row">
+      <span className="compare__label">{label}</span>
+      <span className="compare__value">{before}</span>
+      <strong className="compare__value compare__value--after">{after}</strong>
     </div>
   )
 }

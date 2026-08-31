@@ -28,20 +28,23 @@ export function FilterChannels({ selectedChannels, onChannelsChange }: FilterCha
   }
 
   return (
-    <fieldset className="filter-channel-group">
-      <legend>Channels</legend>
-      {FILTER_CHANNELS.map((channel: FilterChannel) => (
-        <label key={channel}>
-          <input
-            checked={selectedChannels.includes(channel)}
-            type="checkbox"
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              handleChannelChange(channel, event.currentTarget.checked)
-            }}
-          />
-          {channelLabels[channel]}
-        </label>
-      ))}
+    <fieldset className="field checkbox-group">
+      <legend className="field__label">Channels</legend>
+      <div className="checkbox-group__options">
+        {FILTER_CHANNELS.map((channel: FilterChannel) => (
+          <label className="checkbox" key={channel}>
+            <input
+              checked={selectedChannels.includes(channel)}
+              type="checkbox"
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                handleChannelChange(channel, event.currentTarget.checked)
+              }}
+            />
+            <span className={`channel-toggle__dot channel-toggle__dot--${channel}`} aria-hidden="true" />
+            <span>{channelLabels[channel]}</span>
+          </label>
+        ))}
+      </div>
     </fieldset>
   )
 }

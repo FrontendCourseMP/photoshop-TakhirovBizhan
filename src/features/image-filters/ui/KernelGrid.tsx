@@ -19,7 +19,9 @@ export function KernelGrid({ kernel, onKernelChange }: KernelGridProps): JSX.Ele
     <div className="kernel-grid" aria-label="Kernel 3 by 3">
       {kernel.map((value: number, index: number) => (
         <input
+          className="input kernel-grid__cell"
           key={index}
+          aria-label={`Kernel value ${index + 1}`}
           step={0.1}
           type="number"
           value={value}

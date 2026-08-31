@@ -11,14 +11,14 @@ export const DEFAULT_RESIZE_METHOD = 'bilinear' as const
 export const INTERPOLATION_ALGORITHMS: readonly InterpolationAlgorithm[] = [
   {
     id: 'nearest-neighbor',
-    label: 'Nearest Neighbor',
-    description: 'Самый быстрый метод: сохраняет резкие границы, подходит для pixel-art, но может давать ступенчатость.',
+    label: 'Nearest neighbor',
+    description: 'Fastest option. Keeps hard edges and suits pixel art, but can look blocky when scaling up.',
     resize: resizeNearestNeighbor,
   },
   {
     id: 'bilinear',
     label: 'Bilinear',
-    description: 'Более плавный метод для фотографий: смешивает соседние пиксели и может слегка размывать изображение.',
+    description: 'Smoother option for photos. Blends neighboring pixels, which can soften fine detail.',
     resize: resizeBilinear,
   },
 ]

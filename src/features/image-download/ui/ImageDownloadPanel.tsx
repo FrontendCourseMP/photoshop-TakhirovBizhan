@@ -1,78 +1,60 @@
-import { useState } from 'react'
-import type { JSX } from 'react'
-import type { EditableImage, FileProcessingError, ImageFileFormat } from '../../../entities/image/types'
-import { downloadImage } from '../model/downloadImage'
+import type { ChangeEvent, JSX } from 'react'
+import type { ImageFileFormat } from '../../../entities/image/types'
+import { Icon } from '../../../shared/ui/Icon'
 
 interface ImageDownloadPanelProps {
-  readonly image: EditableImage | null
-  readonly onError: (error: FileProcessingError) => void
+  readonly format: ImageFileFormat
+  readonly disabled: boolean
+  readonly isExporting: boolean
+  readonly onFormatChange: (format: ImageFileFormat) => void
+  readonly onExport: () => void
 }
 
-const exportFormats: readonly ImageFileFormat[] = ['png', 'jpeg', 'gb7']
+const EXPORT_FORMATS: readonly ImageFileFormat[] = ['png', 'jpeg', 'gb7']
 
-export function ImageDownloadPanel({ image, onError }: ImageDownloadPanelProps): JSX.Element {
-  const [activeFormat, setActiveFormat] = useState<ImageFileFormat | null>(null)
+export function ImageDownloadPanel({
+  format,
+  disabled,
+  isExporting,
+  onFormatChange,
+  onExport,
+}: ImageDownloadPanelProps): JSX.Element {
+  function handleFormatChange(event: ChangeEvent<HTMLSelectElement>): void {
+    // Значение select проверяется по whitelist, чтобы в state не попал неизвестный формат.
+    const nextFormat: ImageFileFormat | undefined = EXPORT_FORMATS.find(
+      (candidate: ImageFileFormat): boolean => candidate === event.currentTarget.value,
+    )
 
-  async function handleDownload(format: ImageFileFormat): Promise<void> {
-    // При отсутствии изображения кнопки disabled, но guard оставлен для безопасного вызова handler.
-    if (image === null) {
-      return
-    }
-
-    // activeFormat блокирует параллельные экспорты и показывает пользователю текущий формат сохранения.
-    setActiveFormat(format)
-
-    try {
-      await downloadImage(image, format)
-    } catch (cause: unknown) {
-      onError(normalizeError(cause))
-    } finally {
-      setActiveFormat(null)
+    if (nextFormat !== undefined) {
+      onFormatChange(nextFormat)
     }
   }
 
   return (
-    <section className="toolbar-section" aria-label="Download image">
-      <div className="button-group" role="group" aria-label="Export formats">
-        {exportFormats.map((format: ImageFileFormat) => (
-          <button
-            className="toolbar-button"
-            type="button"
-            disabled={image === null || activeFormat !== null}
-            key={format}
-            onClick={() => {
-              void handleDownload(format)
-            }}
-          >
-            {activeFormat === format ? 'Saving...' : `Save ${format.toUpperCase()}`}
-          </button>
+    <div className="input-group">
+      <select
+        className="select select--attached"
+        aria-label="Export format"
+        disabled={disabled || isExporting}
+        value={format}
+        onChange={handleFormatChange}
+      >
+        {EXPORT_FORMATS.map((exportFormat: ImageFileFormat) => (
+          <option key={exportFormat} value={exportFormat}>
+            {exportFormat.toUpperCase()}
+          </option>
         ))}
-      </div>
-    </section>
+      </select>
+      <button
+        className="btn btn--attached"
+        type="button"
+        disabled={disabled || isExporting}
+        title="Save image"
+        onClick={onExport}
+      >
+        <Icon name="save" />
+        <span>{isExporting ? 'Saving…' : 'Save'}</span>
+      </button>
+    </div>
   )
-}
-
-function normalizeError(cause: unknown): FileProcessingError {
-  // UI принимает только FileProcessingError, поэтому неизвестные исключения
-  // приводятся к единому отображаемому контракту.
-  if (isFileProcessingError(cause)) {
-    return cause
-  }
-
-  return {
-    code: 'UNKNOWN_ERROR',
-    message: 'Unknown error while exporting the image.',
-    cause,
-  }
-}
-
-function isFileProcessingError(value: unknown): value is FileProcessingError {
-  // Narrowing по форме объекта позволяет обработать unknown без any.
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-
-  const candidate: Partial<FileProcessingError> = value
-
-  return typeof candidate.code === 'string' && typeof candidate.message === 'string'
 }

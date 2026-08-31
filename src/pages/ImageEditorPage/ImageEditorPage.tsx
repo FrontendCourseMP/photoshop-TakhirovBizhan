@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import type {
   EditableImage,
   FileProcessingError,
+  ImageFileFormat,
 } from "../../entities/image/types";
 import { getCanvasImageCoordinates } from "../../features/color-picker/lib/canvasCoordinates";
 import { pickPixelColor } from "../../features/color-picker/lib/pickPixelColor";
@@ -19,14 +20,23 @@ import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
 import { FiltersDialog } from "../../features/image-filters/ui/FiltersDialog";
 import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
 import { ResizeImageDialog } from "../../features/image-resize/ui/ResizeImageDialog";
-import { calculateInitialDisplayScale, clampScalePercent } from "../../features/image-scale/lib/displayScale";
+import {
+  calculateFitScalePercent,
+  calculateInitialDisplayScale,
+  clampScalePercent,
+  getZoomedScalePercent,
+} from "../../features/image-scale/lib/displayScale";
 import { INITIAL_SCALE_PADDING_PX } from "../../features/image-scale/model/displayScaleConstants";
 import { DisplayScaleControl } from "../../features/image-scale/ui/DisplayScaleControl";
+import { useImageDownload } from "../../features/image-download/hooks/useImageDownload";
 import { ImageDownloadPanel } from "../../features/image-download/ui/ImageDownloadPanel";
 import { ImageStatusBar } from "../../features/image-status/ui/ImageStatusBar";
+import { useImageUpload } from "../../features/image-upload/hooks/useImageUpload";
+import { ImageDropZone } from "../../features/image-upload/ui/ImageDropZone";
 import { ImageUploadPanel } from "../../features/image-upload/ui/ImageUploadPanel";
 import { ImageCanvas } from "../../features/image-viewer/ui/ImageCanvas";
 import type { ImageSize } from "../../shared/types/imageSize";
+import { Icon } from "../../shared/ui/Icon";
 import "./ImageEditorPage.css";
 
 type CanvasOperationScope = "levels" | "filters" | "resize";
@@ -47,8 +57,15 @@ export function ImageEditorPage(): JSX.Element {
   const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState<boolean>(false);
   const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
   const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
+  const [exportFormat, setExportFormat] = useState<ImageFileFormat>("png");
   const [canvasOperations, setCanvasOperations] = useState<CanvasOperationState>({});
   const [error, setError] = useState<FileProcessingError | null>(null);
+
+  const upload = useImageUpload({
+    onImageLoaded: handleImageLoaded,
+    onError: handleError,
+  });
+  const download = useImageDownload({ onError: handleError });
 
   function showLoader(scope: CanvasOperationScope, label: string): void {
     setCanvasOperations((currentOperations: CanvasOperationState): CanvasOperationState => ({
@@ -102,6 +119,26 @@ export function ImageEditorPage(): JSX.Element {
     setError(nextError);
   }
 
+  function handleFitToViewport(): void {
+    if (image === null || canvasViewportSize === null) {
+      return;
+    }
+
+    setDisplayScalePercent(calculateFitScalePercent(image.imageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX));
+  }
+
+  function handleZoomStep(direction: 1 | -1): void {
+    setDisplayScalePercent((currentPercent: number): number => getZoomedScalePercent(currentPercent, direction));
+  }
+
+  function handleExport(): void {
+    if (image === null) {
+      return;
+    }
+
+    download.exportImage(image, exportFormat);
+  }
+
   function handleLevelsCancel(): void {
     // Cancel откатывает временный preview: исходное image.imageData остается неизменным.
     setLevelsPreviewImageData(null);
@@ -129,8 +166,8 @@ export function ImageEditorPage(): JSX.Element {
       return;
     }
 
-    // После resize пересчитываем стартовый scale, иначе новое изображение может оказаться
-    // слишком большим или слишком маленьким относительно текущего viewport.
+    // После resize пересчитываем scale тем же правилом, что и при открытии файла:
+    // уменьшаем, если результат не помещается в viewport, но не увеличиваем.
     const nextScalePercent: number =
       canvasViewportSize === null
         ? displayScalePercent
@@ -179,7 +216,7 @@ export function ImageEditorPage(): JSX.Element {
     return applyChannelsToImageData(baseImageData, channels);
   }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
   const canvasOperationLabels: readonly string[] = Object.values(canvasOperations);
-  const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image...";
+  const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image…";
 
   function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
     // Пипетка работает только в активном режиме, поэтому обычные клики по canvas
@@ -200,13 +237,31 @@ export function ImageEditorPage(): JSX.Element {
   }
 
   return (
-    <main className="image-editor">
-      <header className="editor-toolbar">
-        <div className="editor-title">
-          <h1>Photoshop</h1>
+    <div className="editor" {...upload.dropZoneProps}>
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand__mark" aria-hidden="true">
+            <Icon name="image" size={18} />
+          </span>
+          <span className="brand__name">Photoshop</span>
         </div>
-        <div className="toolbar-actions">
+
+        <div className="topbar__groups">
+          <div className="toolgroup" role="group" aria-label="File">
+            <ImageUploadPanel upload={upload} />
+            <ImageDownloadPanel
+              disabled={image === null}
+              format={exportFormat}
+              isExporting={download.isExporting}
+              onExport={handleExport}
+              onFormatChange={setExportFormat}
+            />
+          </div>
+
+          <span className="topbar__divider" aria-hidden="true" />
+
           <Toolbar
+            canPickColor={image !== null}
             canOpenLevels={image !== null}
             canOpenResize={image !== null}
             canOpenFilters={image !== null}
@@ -224,93 +279,121 @@ export function ImageEditorPage(): JSX.Element {
               setIsFiltersDialogOpen(true);
             }}
           />
+
+          <span className="topbar__divider" aria-hidden="true" />
+
           <DisplayScaleControl
             disabled={image === null}
             scalePercent={displayScalePercent}
+            onFitToViewport={handleFitToViewport}
             onScaleChange={(nextScalePercent: number) => {
               setDisplayScalePercent(clampScalePercent(nextScalePercent));
             }}
           />
-          <ImageUploadPanel
-            onImageLoaded={handleImageLoaded}
-            onError={handleError}
-          />
-          <ImageDownloadPanel image={image} onError={handleError} />
         </div>
       </header>
 
       {error === null ? null : (
-        <div className="error-banner" role="alert">
-          <strong>{error.code}</strong>
-          <span>{error.message}</span>
+        <div className="banner banner--error" role="alert">
+          <span className="banner__icon" aria-hidden="true">
+            <Icon name="alert" />
+          </span>
+          <p className="banner__text">{error.message}</p>
+          <code className="banner__code">{error.code}</code>
+          <button
+            className="btn btn--icon btn--ghost"
+            type="button"
+            aria-label="Dismiss error"
+            onClick={() => {
+              setError(null);
+            }}
+          >
+            <Icon name="close" />
+          </button>
         </div>
       )}
 
-      <section className="editor-workspace" aria-label="Image workspace">
-        <div className="workspace-layout">
-          <ImageCanvas
-            displayScalePercent={displayScalePercent}
-            imageData={displayedImageData}
-            isColorPickerActive={isColorPickerActive}
-            isProcessing={canvasOperationLabels.length > 0}
-            processingLabel={canvasProcessingLabel}
-            onCanvasClick={handleCanvasPick}
-            onViewportSizeChange={setCanvasViewportSize}
+      <main className="workspace" aria-label="Image workspace">
+        <ImageCanvas
+          displayScalePercent={displayScalePercent}
+          imageData={displayedImageData}
+          isColorPickerActive={isColorPickerActive}
+          isProcessing={canvasOperationLabels.length > 0}
+          placeholder={
+            <ImageDropZone
+              isDragActive={upload.isDragActive}
+              isLoading={upload.isLoading}
+              onOpenClick={upload.openFileDialog}
+            />
+          }
+          processingLabel={canvasProcessingLabel}
+          onCanvasClick={handleCanvasPick}
+          onViewportSizeChange={setCanvasViewportSize}
+          onZoomStep={handleZoomStep}
+        />
+
+        <aside className="inspector">
+          <ChannelsPanel
+            channels={channels}
+            onChannelsChange={setChannels}
+            sourceImageData={image?.imageData ?? null}
           />
-          <div className="inspector-panel">
-            {image !== null && isLevelsDialogOpen ? (
-              <LevelsDialog
-                sourceImageData={image.imageData}
-                onApply={handleLevelsApply}
-                onCancel={handleLevelsCancel}
-                onProcessingChange={(isPending: boolean) => {
-                  setOperationPending("levels", isPending, "Applying Levels...");
-                }}
-                onPreviewChange={setLevelsPreviewImageData}
-              />
-            ) : (
-              <ChannelsPanel
-                channels={channels}
-                onChannelsChange={setChannels}
-                sourceImageData={image?.imageData ?? null}
-              />
-            )}
-            <ColorPickerInfo result={colorPickerResult} />
+          <ColorPickerInfo isPickerActive={isColorPickerActive} result={colorPickerResult} />
+        </aside>
+
+        {upload.isDragActive && image !== null ? (
+          <div className="drop-overlay">
+            <span>Drop the file to open it</span>
           </div>
-        </div>
-      </section>
+        ) : null}
+      </main>
 
       <ImageStatusBar displayScalePercent={displayScalePercent} metadata={image?.metadata ?? null} />
 
-      {image !== null ? (
+      {/* Dialogs монтируются только в открытом состоянии: их preview-эффекты не должны
+          считать изображение и перезаписывать canvas, пока инструмент не вызван. */}
+      {image !== null && isLevelsDialogOpen ? (
+        <LevelsDialog
+          open
+          sourceImageData={image.imageData}
+          onApply={handleLevelsApply}
+          onCancel={handleLevelsCancel}
+          onPreviewChange={setLevelsPreviewImageData}
+          onProcessingChange={(isPending: boolean) => {
+            setOperationPending("levels", isPending, "Applying Levels…");
+          }}
+        />
+      ) : null}
+
+      {image !== null && isResizeDialogOpen ? (
         <ResizeImageDialog
-          open={isResizeDialogOpen}
+          open
           sourceImageData={image.imageData}
           onApply={handleResizeApply}
           onCancel={() => {
             setIsResizeDialogOpen(false);
           }}
           onProcessingChange={(isPending: boolean) => {
-            setOperationPending("resize", isPending, "Resizing image...");
+            setOperationPending("resize", isPending, "Resizing image…");
           }}
         />
       ) : null}
 
-      {image !== null ? (
+      {image !== null && isFiltersDialogOpen ? (
         <FiltersDialog
-          open={isFiltersDialogOpen}
+          open
           sourceImageData={image.imageData}
           onApply={handleFiltersApply}
           onCancel={() => {
             setFilterPreviewImageData(null);
             setIsFiltersDialogOpen(false);
           }}
-          onProcessingChange={(isPending: boolean) => {
-            setOperationPending("filters", isPending, "Applying filter...");
-          }}
           onPreviewChange={setFilterPreviewImageData}
+          onProcessingChange={(isPending: boolean) => {
+            setOperationPending("filters", isPending, "Applying filter…");
+          }}
         />
       ) : null}
-    </main>
+    </div>
   );
 }

@@ -20,9 +20,9 @@ export function FilterPresetsSelect({ onPresetSelect }: FilterPresetsSelectProps
   }
 
   return (
-    <label className="filter-field">
-      <span>Preset</span>
-      <select defaultValue={'identity' satisfies KernelPresetId} onChange={handleChange}>
+    <label className="field">
+      <span className="field__label">Preset</span>
+      <select className="select" defaultValue={'identity' satisfies KernelPresetId} onChange={handleChange}>
         {FILTER_KERNEL_PRESETS.map((preset: KernelPreset) => (
           <option key={preset.id} value={preset.id}>
             {preset.name}

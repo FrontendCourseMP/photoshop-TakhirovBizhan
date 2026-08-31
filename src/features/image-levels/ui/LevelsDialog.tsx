@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { createRafPreviewScheduler, type RafPreviewScheduler } from '../../../shared/performance/rafScheduler'
+import { Modal } from '../../../shared/ui/Modal'
+import { Icon } from '../../../shared/ui/Icon'
 import { HistogramCanvas } from '../../histogram/ui/HistogramCanvas'
 import type { HistogramData, HistogramMode } from '../../histogram/types'
 import { applyLevelsInWorker, applyLevelsPreviewInWorker } from '../../image-processing-worker/workerClient'
@@ -14,6 +16,7 @@ import {
 import type { LevelsChannel, LevelsSettings, LevelsState } from '../types'
 
 interface LevelsDialogProps {
+  readonly open: boolean
   readonly sourceImageData: ImageData
   readonly onPreviewChange: (preview: ImageData | null) => void
   readonly onApply: (imageData: ImageData) => void
@@ -30,12 +33,13 @@ const channelLabels: Readonly<Record<LevelsChannel, string>> = {
 }
 
 export function LevelsDialog({
+  open,
   sourceImageData,
   onPreviewChange,
   onApply,
   onCancel,
   onProcessingChange,
-}: LevelsDialogProps): JSX.Element {
+}: LevelsDialogProps): JSX.Element | null {
   // Dialog хранит только UI-состояние Levels: выбранный канал, режим histogram,
   // включенность preview и настройки каждого канала. Обработка пикселей остается в lib.
   const [selectedChannel, setSelectedChannel] = useState<LevelsChannel>('master')
@@ -182,17 +186,19 @@ export function LevelsDialog({
   }
 
   return (
-    <section className="levels-dialog" aria-label="Levels">
-      <div className="levels-dialog__content">
-        <header className="levels-dialog__header">
-          <h2>Levels</h2>
-          <span>Input levels with canvas preview</span>
-        </header>
-
-        <div className="levels-dialog__row">
-          <label className="levels-field">
-            <span>Channel</span>
+    <Modal
+      open={open}
+      size="lg"
+      title="Levels"
+      subtitle="Remap input levels per channel with a live canvas preview"
+      onClose={handleCancel}
+    >
+      <div className="levels">
+        <div className="form-row">
+          <label className="field">
+            <span className="field__label">Channel</span>
             <select
+              className="select"
               value={selectedChannel}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const nextChannel: LevelsChannel | null = parseLevelsChannel(event.currentTarget.value)
@@ -210,38 +216,40 @@ export function LevelsDialog({
             </select>
           </label>
 
-          <fieldset className="levels-mode-switch">
-            <legend>Histogram</legend>
-            <label>
-              <input
-                checked={histogramMode === 'linear'}
-                name="histogram-mode"
-                type="radio"
-                onChange={() => {
-                  setHistogramMode('linear')
-                }}
-              />
-              Linear
-            </label>
-            <label>
-              <input
-                checked={histogramMode === 'log'}
-                name="histogram-mode"
-                type="radio"
-                onChange={() => {
-                  setHistogramMode('log')
-                }}
-              />
-              Log
-            </label>
+          <fieldset className="field segmented">
+            <legend className="field__label">Histogram scale</legend>
+            <div className="segmented__options">
+              <label className="segmented__option">
+                <input
+                  checked={histogramMode === 'linear'}
+                  name="histogram-mode"
+                  type="radio"
+                  onChange={() => {
+                    setHistogramMode('linear')
+                  }}
+                />
+                <span>Linear</span>
+              </label>
+              <label className="segmented__option">
+                <input
+                  checked={histogramMode === 'log'}
+                  name="histogram-mode"
+                  type="radio"
+                  onChange={() => {
+                    setHistogramMode('log')
+                  }}
+                />
+                <span>Logarithmic</span>
+              </label>
+            </div>
           </fieldset>
         </div>
 
-        <div className="levels-histogram">
+        <div className="levels__histogram">
           <HistogramCanvas histogram={histogram} mode={histogramMode} />
         </div>
 
-        <div className="levels-controls">
+        <div className="levels__controls">
           <LevelsControl
             label="Black"
             max={selectedSettings.whitePoint - 1}
@@ -268,8 +276,8 @@ export function LevelsDialog({
           />
         </div>
 
-        <footer className="levels-dialog__footer">
-          <label className="levels-preview-toggle">
+        <footer className="dialog__footer">
+          <label className="checkbox">
             <input
               checked={previewEnabled}
               type="checkbox"
@@ -277,29 +285,31 @@ export function LevelsDialog({
                 setPreviewEnabled(event.currentTarget.checked)
               }}
             />
-            Preview on canvas
+            <span>Preview on canvas</span>
           </label>
 
-          <div className="levels-dialog__actions">
-            <button type="button" disabled={isApplying} onClick={handleReset}>
-              Reset
+          <div className="dialog__actions">
+            <button className="btn btn--ghost" type="button" disabled={isApplying} onClick={handleReset}>
+              <Icon name="reset" />
+              <span>Reset</span>
             </button>
-            <button type="button" disabled={isApplying} onClick={handleCancel}>
+            <button className="btn" type="button" disabled={isApplying} onClick={handleCancel}>
               Cancel
             </button>
             <button
+              className="btn btn--primary"
               type="button"
               disabled={isApplying}
               onClick={() => {
                 void handleApply()
               }}
             >
-              {isApplying ? 'Applying...' : 'Apply'}
+              {isApplying ? 'Applying…' : 'Apply'}
             </button>
           </div>
         </footer>
       </div>
-    </section>
+    </Modal>
   )
 }
 
@@ -320,10 +330,10 @@ function LevelsControl({ label, min, max, step, value, onChange }: LevelsControl
   }
 
   return (
-    <label className="levels-control">
-      <span>{label}</span>
-      <input max={max} min={min} step={step} type="range" value={value} onChange={handleChange} />
-      <input max={max} min={min} step={step} type="number" value={value} onChange={handleChange} />
+    <label className="slider">
+      <span className="slider__label">{label}</span>
+      <input className="slider__range" max={max} min={min} step={step} type="range" value={value} onChange={handleChange} />
+      <input className="input slider__number" max={max} min={min} step={step} type="number" value={value} onChange={handleChange} />
     </label>
   )
 }

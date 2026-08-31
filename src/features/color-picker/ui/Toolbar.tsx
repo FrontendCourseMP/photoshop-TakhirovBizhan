@@ -1,7 +1,9 @@
 import type { JSX } from 'react'
+import { Icon } from '../../../shared/ui/Icon'
 
 interface ToolbarProps {
   readonly isColorPickerActive: boolean
+  readonly canPickColor: boolean
   readonly canOpenLevels: boolean
   readonly canOpenResize: boolean
   readonly canOpenFilters: boolean
@@ -13,6 +15,7 @@ interface ToolbarProps {
 
 export function Toolbar({
   isColorPickerActive,
+  canPickColor,
   canOpenLevels,
   canOpenResize,
   canOpenFilters,
@@ -24,24 +27,30 @@ export function Toolbar({
   // Toolbar только вызывает callbacks page-слоя. Так инструменты остаются независимыми,
   // а правила открытия dialog и наличие изображения контролируются выше.
   return (
-    <section className="tool-panel" aria-label="Tools">
+    <div className="toolgroup" role="group" aria-label="Tools">
       <button
-        className={isColorPickerActive ? 'tool-button tool-button--active' : 'tool-button'}
+        className={isColorPickerActive ? 'btn btn--active' : 'btn'}
         type="button"
+        disabled={!canPickColor}
         aria-pressed={isColorPickerActive}
+        title="Sample a pixel color"
         onClick={onColorPickerToggle}
       >
-        Пипетка
+        <Icon name="pipette" />
+        <span>Eyedropper</span>
       </button>
-      <button className="tool-button" type="button" disabled={!canOpenLevels} onClick={onLevelsOpen}>
-        Levels
+      <button className="btn" type="button" disabled={!canOpenLevels} title="Adjust input levels" onClick={onLevelsOpen}>
+        <Icon name="levels" />
+        <span>Levels</span>
       </button>
-      <button className="tool-button" type="button" disabled={!canOpenResize} onClick={onResizeOpen}>
-        Resize
+      <button className="btn" type="button" disabled={!canOpenResize} title="Resize the image" onClick={onResizeOpen}>
+        <Icon name="resize" />
+        <span>Resize</span>
       </button>
-      <button className="tool-button" type="button" disabled={!canOpenFilters} onClick={onFiltersOpen}>
-        Filters
+      <button className="btn" type="button" disabled={!canOpenFilters} title="Apply a convolution filter" onClick={onFiltersOpen}>
+        <Icon name="filters" />
+        <span>Filters</span>
       </button>
-    </section>
+    </div>
   )
 }

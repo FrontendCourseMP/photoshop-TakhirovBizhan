@@ -86,42 +86,38 @@ export function ChannelsPanel({
   }
 
   return (
-    <aside className="channels-panel" aria-label="Image channels">
-      <div className="panel-heading">
+    <section className="panel panel--stretch" aria-label="Image channels">
+      <header className="panel__header">
         <h2>Channels</h2>
+        <span className="panel__hint">Visible in the canvas</span>
+      </header>
+
+      <div className="channel-toggles" role="group" aria-label="Channel visibility">
+        {(Object.keys(channelLabels) as readonly ColorChannel[]).map((channel: ColorChannel) => (
+          <label
+            className={channels[channel] ? "channel-toggle" : "channel-toggle channel-toggle--off"}
+            key={channel}
+          >
+            <input
+              type="checkbox"
+              checked={channels[channel]}
+              disabled={sourceImageData === null}
+              onChange={() => {
+                handleToggle(channel);
+              }}
+            />
+            <span className={`channel-toggle__dot channel-toggle__dot--${channel}`} aria-hidden="true" />
+            <span className="channel-toggle__label">{channelLabels[channel]}</span>
+          </label>
+        ))}
       </div>
 
-      <div className="channel-controls" aria-label="Channel switches">
-        {(Object.keys(channelLabels) as readonly ColorChannel[]).map(
-          (channel: ColorChannel) => (
-            <label
-              className={
-                channels[channel]
-                  ? "channel-toggle"
-                  : "channel-toggle channel-toggle--inactive"
-              }
-              key={channel}
-            >
-              <input
-                type="checkbox"
-                checked={channels[channel]}
-                disabled={sourceImageData === null}
-                onChange={() => {
-                  handleToggle(channel);
-                }}
-              />
-              <span>{channelLabels[channel]}</span>
-            </label>
-          )
-        )}
-      </div>
-
-      <div className="channel-preview-list">
-        <OperationLoader active={isPreviewsPending} label="Building channel previews..." />
+      <div className="channel-previews">
+        <OperationLoader active={isPreviewsPending} label="Building channel previews…" />
         {previews.length === 0 ? (
-          <div className="panel-empty">
-            {sourceImageData === null ? "Open an image to inspect channels" : "Preparing channel previews..."}
-          </div>
+          <p className="panel__empty">
+            {sourceImageData === null ? "Open an image to inspect its channels" : "Preparing previews…"}
+          </p>
         ) : (
           previews.map((preview: ChannelPreviewData) => (
             <ChannelPreview
@@ -136,6 +132,6 @@ export function ChannelsPanel({
           ))
         )}
       </div>
-    </aside>
+    </section>
   );
 }

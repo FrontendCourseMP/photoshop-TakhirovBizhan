@@ -9,21 +9,21 @@ export function validateResizeSettings(settings: ResizeSettings, sourceSize: Ima
   if (!isValidFiniteNumber(settings.width) || !isValidFiniteNumber(settings.height)) {
     return {
       ok: false,
-      message: 'Width и Height должны быть конечными числами.',
+      message: 'Width and height must be positive finite numbers.',
     }
   }
 
   if (targetSize.width < 1 || targetSize.height < 1) {
     return {
       ok: false,
-      message: 'Итоговый размер должен быть не меньше 1x1.',
+      message: 'The result must be at least 1 × 1 pixels.',
     }
   }
 
   if (targetSize.width > MAX_IMAGE_SIZE || targetSize.height > MAX_IMAGE_SIZE) {
     return {
       ok: false,
-      message: `Итоговый размер не должен превышать ${MAX_IMAGE_SIZE}x${MAX_IMAGE_SIZE}.`,
+      message: `The result must not exceed ${MAX_IMAGE_SIZE} × ${MAX_IMAGE_SIZE} pixels.`,
     }
   }
 
