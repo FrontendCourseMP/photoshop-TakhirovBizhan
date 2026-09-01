@@ -125,7 +125,10 @@ export function calculateHistogramInWorker(source: ImageData, channel: Histogram
   ).then(assertHistogramResult)
 }
 
-export function createChannelPreviewsInWorker(source: ImageData): Promise<readonly ChannelPreview[]> {
+export function createChannelPreviewsInWorker(
+  source: ImageData,
+  maxPreviewSide: number,
+): Promise<readonly ChannelPreview[]> {
   const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
 
   return runWorkerTask(
@@ -133,6 +136,7 @@ export function createChannelPreviewsInWorker(source: ImageData): Promise<readon
       taskId: createTaskId(),
       type: 'BUILD_CHANNEL_PREVIEWS',
       source: preparedSource.imageData,
+      maxPreviewSide,
     },
     preparedSource.transfer,
   ).then(assertChannelPreviewsResult)

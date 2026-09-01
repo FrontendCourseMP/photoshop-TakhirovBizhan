@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { OperationLoader } from "../../../shared/ui/OperationLoader/OperationLoader";
 import { createChannelPreviewsInWorker } from "../../image-processing-worker/workerClient";
+import { CHANNEL_PREVIEW_MAX_SIDE } from "../model/previewSize";
 import type {
   ChannelPreview as ChannelPreviewData,
   ChannelsState,
@@ -51,9 +52,8 @@ export function ChannelsPanel({
     previewTaskIdRef.current = taskId;
 
     // Превью строятся из sourceImageData, а не из текущего displayedImageData.
-    // Тяжелая генерация ImageData для миниатюр вынесена в Worker, чтобы загрузка
-    // большого изображения не блокировала переключатели и основной canvas.
-    void createChannelPreviewsInWorker(sourceImageData)
+    // Разбор на каналы идет в Worker и ограничен размером миниатюры.
+    void createChannelPreviewsInWorker(sourceImageData, CHANNEL_PREVIEW_MAX_SIDE)
       .then((nextPreviews: readonly ChannelPreviewData[]): void => {
         if (previewTaskIdRef.current === taskId) {
           setPreviewsState({

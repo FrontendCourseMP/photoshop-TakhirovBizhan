@@ -1,5 +1,6 @@
 import { calculateHistogram } from '../histogram/lib/calculateHistogram'
 import { createChannelPreviews } from '../image-channels/lib/imageChannels'
+import { fitImageDataToBox } from '../image-channels/lib/previewScale'
 import { applyKernel3x3 } from '../image-filters/lib/applyKernel'
 import { applyLevels } from '../image-levels/lib/applyLevels'
 import { resizeImage } from '../image-resize/lib/resizeAlgorithms'
@@ -79,7 +80,9 @@ function runImageProcessingTask(request: ImageProcessingWorkerRequest): ImagePro
     return calculateHistogram(request.source, request.channel)
   }
 
-  return createChannelPreviews(request.source)
+  // Превью строятся из уменьшенной копии, поэтому в main thread уходят миниатюры,
+  // а не полноразмерные ImageData.
+  return createChannelPreviews(fitImageDataToBox(request.source, request.maxPreviewSide))
 }
 
 function collectTransferables(result: ImageProcessingWorkerResult): Transferable[] {

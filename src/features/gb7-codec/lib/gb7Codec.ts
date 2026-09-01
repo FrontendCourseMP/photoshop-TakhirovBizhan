@@ -7,7 +7,11 @@ const GB7_HEADER_SIZE = 12
 const GB7_MASK_FLAG = 0x01
 const GB7_ALLOWED_FLAGS = GB7_MASK_FLAG
 const GB7_MAX_DIMENSION = 0xffff
+// Старший бит пикселя хранит маску: 1 — пиксель видим, 0 — прозрачен.
+const GB7_OPACITY_BIT = 0x80
 const MAX_GRAYSCALE_7 = 0x7f
+// Яркость всегда занимает младшие семь бит, поэтому флаг маски глубину не меняет.
+const GB7_COLOR_DEPTH = 7
 const DEFAULT_ALPHA_MASK_THRESHOLD = 127
 
 export function decodeGB7(buffer: ArrayBuffer): DecodedGB7Image {
@@ -62,17 +66,28 @@ export function decodeGB7(buffer: ArrayBuffer): DecodedGB7Image {
 
   for (let pixelIndex = 0; pixelIndex < width * height; pixelIndex += 1) {
     const sourceByte: number = bytes[GB7_HEADER_SIZE + pixelIndex]
+    const opacityBit: number = sourceByte & GB7_OPACITY_BIT
+
+    // Без флага маски старший бит по спецификации нулевой, иначе файл поврежден.
+    if (!hasMask && opacityBit !== 0) {
+      throw new GB7CodecError(
+        'GB7_INVALID_MASK_BIT',
+        `GB7 pixel ${pixelIndex} sets the opacity bit while the mask flag is disabled.`,
+      )
+    }
+
     const grayscale7: number = sourceByte & MAX_GRAYSCALE_7
     // GB7 хранит 7-битную яркость, а canvas ожидает стандартные 8-битные RGBA-каналы.
     // Масштабирование 0..127 в 0..255 сохраняет относительную яркость пикселя.
     const grayscale8: number = Math.round((grayscale7 / MAX_GRAYSCALE_7) * 255)
-    const isMasked: boolean = hasMask && (sourceByte & 0x80) !== 0
+    // Без маски изображение непрозрачно целиком, с маской видимость задает старший бит.
+    const isOpaque: boolean = !hasMask || opacityBit !== 0
     const rgbaOffset: number = pixelIndex * 4
 
     rgba[rgbaOffset] = grayscale8
     rgba[rgbaOffset + 1] = grayscale8
     rgba[rgbaOffset + 2] = grayscale8
-    rgba[rgbaOffset + 3] = isMasked ? 0 : 255
+    rgba[rgbaOffset + 3] = isOpaque ? 255 : 0
   }
 
   return {
@@ -80,7 +95,7 @@ export function decodeGB7(buffer: ArrayBuffer): DecodedGB7Image {
     metadata: {
       width,
       height,
-      colorDepth: hasMask ? 8 : 7,
+      colorDepth: GB7_COLOR_DEPTH,
       format: 'gb7',
       colorMode: 'grayscale',
       fileName: '',
@@ -135,11 +150,10 @@ export function encodeGB7(imageData: ImageData, options: GB7EncodeOptions = {}):
     // на визуальную яркость, чем красный и синий.
     const grayscale8: number = Math.round(red * 0.299 + green * 0.587 + blue * 0.114)
     const grayscale7: number = Math.round((grayscale8 / 255) * MAX_GRAYSCALE_7)
-    // Старший бит используется только как маска; цветовая яркость всегда остается в младших 7 битах.
-    // Так декодер может отделить прозрачность от grayscale без дополнительного поля.
-    const maskBit: number = includeMask && alpha <= alphaMaskThreshold ? 0x80 : 0x00
+    // Бит поднимается у видимых пикселей; без маски он всегда нулевой.
+    const opacityBit: number = includeMask && alpha > alphaMaskThreshold ? GB7_OPACITY_BIT : 0x00
 
-    output[GB7_HEADER_SIZE + pixelIndex] = grayscale7 | maskBit
+    output[GB7_HEADER_SIZE + pixelIndex] = grayscale7 | opacityBit
   }
 
   return outputBuffer
@@ -166,7 +180,7 @@ function writeUint16BigEndian(bytes: Uint8Array, offset: number, value: number):
 }
 
 function hasTransparentPixels(imageData: ImageData, alphaMaskThreshold: number): boolean {
-  // Если прозрачных пикселей нет, mask flag можно не выставлять и сохранить colorDepth 7 bit.
+  // Если прозрачных пикселей нет, mask flag можно не выставлять и оставить все старшие биты нулевыми.
   for (let index = 3; index < imageData.data.length; index += 4) {
     if (imageData.data[index] <= alphaMaskThreshold) {
       return true

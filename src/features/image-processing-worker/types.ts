@@ -61,6 +61,8 @@ export interface BuildHistogramWorkerRequest extends ImageProcessingRequestBase 
 export interface BuildChannelPreviewsWorkerRequest extends ImageProcessingRequestBase {
   readonly type: 'BUILD_CHANNEL_PREVIEWS'
   readonly source: ImageData
+  // Размер миниатюры задает панель, а уменьшает изображение Worker.
+  readonly maxPreviewSide: number
 }
 
 export type ImageProcessingWorkerRequest =
