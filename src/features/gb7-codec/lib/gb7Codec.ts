@@ -98,6 +98,9 @@ export function decodeGB7(buffer: ArrayBuffer): DecodedGB7Image {
       colorDepth: GB7_COLOR_DEPTH,
       format: 'gb7',
       colorMode: 'grayscale',
+      // hasMask описывает флаг формата, hasAlpha - общий для редактора признак:
+      // маска GB7 попадает в alpha-канал ImageData и работает как обычный альфа-канал.
+      hasAlpha: hasMask,
       fileName: '',
       fileSizeBytes: buffer.byteLength,
       hasMask,

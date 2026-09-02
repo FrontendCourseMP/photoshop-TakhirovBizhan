@@ -13,6 +13,9 @@ export interface ImageMetadata {
   readonly colorDepth: number
   readonly format: ImageFileFormat
   readonly colorMode: ImageColorMode
+  // Наличие альфы хранится отдельно от colorMode: grayscale-файл тоже может нести альфа-канал,
+  // и от этого признака зависит число каналов в панели.
+  readonly hasAlpha: boolean
   readonly fileName: string
   readonly fileSizeBytes: number
   readonly hasMask?: boolean

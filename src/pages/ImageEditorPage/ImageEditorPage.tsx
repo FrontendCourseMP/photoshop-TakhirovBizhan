@@ -14,8 +14,9 @@ import type {
   ImageCoordinates,
 } from "../../features/color-picker/types";
 import { applyChannelsToImageData } from "../../features/image-channels/lib/imageChannels";
+import { resolveChannelLayout } from "../../features/image-channels/model/channelLayout";
 import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/channelState";
-import type { ChannelsState } from "../../features/image-channels/types";
+import type { ChannelLayout, ChannelsState } from "../../features/image-channels/types";
 import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
 import { FiltersDialog } from "../../features/image-filters/ui/FiltersDialog";
 import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
@@ -203,6 +204,12 @@ export function ImageEditorPage(): JSX.Element {
     setColorPickerResult(null);
   }
 
+  const channelLayout: ChannelLayout | null = useMemo((): ChannelLayout | null => {
+    // Набор каналов определяется форматом открытого файла и не зависит от текущих preview,
+    // поэтому раскладка пересчитывается только при смене изображения.
+    return image === null ? null : resolveChannelLayout(image.metadata);
+  }, [image]);
+
   const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
     // Canvas всегда получает уже готовую версию для отображения:
     // сначала активный preview фильтров, затем preview Levels, затем оригинальное imageData.
@@ -213,7 +220,7 @@ export function ImageEditorPage(): JSX.Element {
 
     const baseImageData: ImageData = filterPreviewImageData ?? levelsPreviewImageData ?? image.imageData;
 
-    return applyChannelsToImageData(baseImageData, channels);
+    return applyChannelsToImageData(baseImageData, channels, image.metadata.hasAlpha);
   }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
   const canvasOperationLabels: readonly string[] = Object.values(canvasOperations);
   const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image…";
@@ -335,6 +342,7 @@ export function ImageEditorPage(): JSX.Element {
         <aside className="inspector">
           <ChannelsPanel
             channels={channels}
+            layout={channelLayout}
             onChannelsChange={setChannels}
             sourceImageData={image?.imageData ?? null}
           />

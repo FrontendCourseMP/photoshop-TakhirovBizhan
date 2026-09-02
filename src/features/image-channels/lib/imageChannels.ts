@@ -1,34 +1,28 @@
-import type { ChannelPreview, ChannelPreviewKind, ChannelsState, ColorChannel } from '../types'
+// Разбор ImageData на каналы: сборка отображаемой копии для canvas и построение миниатюр.
+// Исходный массив пикселей модуль не меняет, поэтому пипетка и экспорт работают с полными данными.
+import type { ChannelPreviewImage, ChannelPreviewKind, ChannelsState } from '../types'
 
-interface PreviewDescriptor {
-  readonly kind: ChannelPreviewKind
-  readonly title: string
-  readonly controlledChannel?: ColorChannel
-}
-
-const PREVIEW_DESCRIPTORS: readonly PreviewDescriptor[] = [
-  { kind: 'grayscale', title: 'Grayscale' },
-  { kind: 'alpha', title: 'Alpha', controlledChannel: 'alpha' },
-  { kind: 'red', title: 'Red', controlledChannel: 'red' },
-  { kind: 'green', title: 'Green', controlledChannel: 'green' },
-  { kind: 'blue', title: 'Blue', controlledChannel: 'blue' },
-  { kind: 'rgb', title: 'RGB' },
-  { kind: 'rgba', title: 'RGBA' },
-]
-
-export function applyChannelsToImageData(source: ImageData, channels: ChannelsState): ImageData {
+export function applyChannelsToImageData(
+  source: ImageData,
+  channels: ChannelsState,
+  hasAlphaChannel: boolean,
+): ImageData {
   const output: ImageData = createEmptyImageData(source.width, source.height)
-  const onlyAlphaEnabled: boolean = channels.alpha && !channels.red && !channels.green && !channels.blue
+  // Маска прозрачности показывается только тогда, когда альфа есть в самом формате файла.
+  // Для RGB или grayscale без альфы погашенные цветовые каналы должны давать черный кадр,
+  // а не белую заливку из полностью непрозрачных пикселей.
+  const showAlphaMask: boolean =
+    hasAlphaChannel && channels.alpha && !channels.red && !channels.green && !channels.blue
 
-  // Каналы применяются к копии, чтобы оригинал оставался источником для пипетки, экспорта и следующих инструментов.
   for (let index = 0; index < source.data.length; index += 4) {
     const red: number = source.data[index]
     const green: number = source.data[index + 1]
     const blue: number = source.data[index + 2]
     const alpha: number = source.data[index + 3]
 
-    if (onlyAlphaEnabled) {
-      // Если включен только Alpha, показываем его как маску, иначе прозрачное изображение было бы невидимым.
+    if (showAlphaMask) {
+      // Альфа переносится в яркость и делается непрозрачной, иначе прозрачные области
+      // остались бы невидимыми и маску нельзя было бы рассмотреть.
       output.data[index] = alpha
       output.data[index + 1] = alpha
       output.data[index + 2] = alpha
@@ -45,12 +39,16 @@ export function applyChannelsToImageData(source: ImageData, channels: ChannelsSt
   return output
 }
 
-export function createChannelPreviews(source: ImageData): readonly ChannelPreview[] {
-  // Превью строятся из исходного ImageData, а не из уже выключенных каналов на главном canvas.
-  return PREVIEW_DESCRIPTORS.map((descriptor: PreviewDescriptor): ChannelPreview => {
+export function createChannelPreviews(
+  source: ImageData,
+  kinds: readonly ChannelPreviewKind[],
+): readonly ChannelPreviewImage[] {
+  // Состав миниатюр приходит снаружи: у grayscale-файла нет отдельных R, G и B,
+  // и панель не должна показывать каналы, которых в формате не существует.
+  return kinds.map((kind: ChannelPreviewKind): ChannelPreviewImage => {
     return {
-      ...descriptor,
-      imageData: createChannelPreviewImageData(source, descriptor.kind),
+      kind,
+      imageData: createChannelPreviewImageData(source, kind),
     }
   })
 }
@@ -59,67 +57,38 @@ export function createChannelPreviewImageData(source: ImageData, kind: ChannelPr
   const output: ImageData = createEmptyImageData(source.width, source.height)
 
   for (let index = 0; index < source.data.length; index += 4) {
-    const red: number = source.data[index]
-    const green: number = source.data[index + 1]
-    const blue: number = source.data[index + 2]
-    const alpha: number = source.data[index + 3]
+    const intensity: number = readChannelIntensity(source.data, index, kind)
 
-    writePreviewPixel(output.data, index, kind, red, green, blue, alpha)
+    // Превью строится в градациях серого: белый - максимум интенсивности канала, черный - его отсутствие.
+    // Непрозрачность фиксируется, иначе миниатюра альфы растворилась бы в фоне панели.
+    output.data[index] = intensity
+    output.data[index + 1] = intensity
+    output.data[index + 2] = intensity
+    output.data[index + 3] = 255
   }
 
   return output
 }
 
-function writePreviewPixel(
-  output: Uint8ClampedArray,
-  index: number,
-  kind: ChannelPreviewKind,
-  red: number,
-  green: number,
-  blue: number,
-  alpha: number,
-): void {
-  // Превью отдельных каналов переводится в grayscale, чтобы яркость отражала интенсивность конкретного канала.
-  if (kind === 'red' || kind === 'green' || kind === 'blue' || kind === 'alpha' || kind === 'grayscale') {
-    const intensity: number = getPreviewIntensity(kind, red, green, blue, alpha)
-
-    output[index] = intensity
-    output[index + 1] = intensity
-    output[index + 2] = intensity
-    output[index + 3] = 255
-    return
-  }
-
-  output[index] = red
-  output[index + 1] = green
-  output[index + 2] = blue
-  output[index + 3] = kind === 'rgba' ? alpha : 255
-}
-
-function getPreviewIntensity(
-  kind: Exclude<ChannelPreviewKind, 'rgb' | 'rgba'>,
-  red: number,
-  green: number,
-  blue: number,
-  alpha: number,
-): number {
+function readChannelIntensity(data: Uint8ClampedArray, index: number, kind: ChannelPreviewKind): number {
   if (kind === 'red') {
-    return red
+    return data[index]
   }
 
   if (kind === 'green') {
-    return green
+    return data[index + 1]
   }
 
   if (kind === 'blue') {
-    return blue
+    return data[index + 2]
   }
 
   if (kind === 'alpha') {
-    return alpha
+    return data[index + 3]
   }
 
-  return Math.round(red * 0.299 + green * 0.587 + blue * 0.114)
+  // Яркость считается по весам восприятия: зеленый вносит в нее больше, чем красный и синий.
+  return Math.round(data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114)
 }
 
 function createEmptyImageData(width: number, height: number): ImageData {

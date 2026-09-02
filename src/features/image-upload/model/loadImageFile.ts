@@ -20,8 +20,8 @@ const HEADER_PROBE_BYTES = 128 * 1024
 
 // Используются, когда заголовок разобрать не удалось, а браузер файл декодировал.
 const FALLBACK_PIXEL_FORMATS: Readonly<Record<BrowserImageFormat, RasterPixelFormat>> = {
-  png: { colorDepth: 32, colorMode: 'rgba' },
-  jpeg: { colorDepth: 24, colorMode: 'rgb' },
+  png: { colorDepth: 32, colorMode: 'rgba', hasAlpha: true },
+  jpeg: { colorDepth: 24, colorMode: 'rgb', hasAlpha: false },
 }
 
 export async function loadImageFile(file: File): Promise<ImageLoadResult> {
@@ -88,6 +88,7 @@ async function loadBrowserImage(
     colorDepth: pixelFormat.colorDepth,
     format,
     colorMode: pixelFormat.colorMode,
+    hasAlpha: pixelFormat.hasAlpha,
     fileName: file.name,
     fileSizeBytes: file.size,
   }

@@ -7,6 +7,8 @@ import type { ImageColorMode, ImageFileFormat } from '../types'
 export interface RasterPixelFormat {
   readonly colorDepth: number
   readonly colorMode: ImageColorMode
+  // Признак нужен панели каналов: он отличает RGB от RGBA и grayscale от grayscale с альфой.
+  readonly hasAlpha: boolean
 }
 
 // Формат опознается по первым байтам файла, а не по расширению.
@@ -15,10 +17,15 @@ const JPEG_MAGIC: readonly number[] = [0xff, 0xd8, 0xff]
 const GB7_MAGIC: readonly number[] = [0x47, 0x42, 0x37, 0x1d]
 
 // IHDR идет первым чанком PNG: 8 байт сигнатуры + 4 байта длины + 4 байта имени.
+const PNG_SIGNATURE_SIZE = 8
 const PNG_CHUNK_NAME_OFFSET = 12
 const PNG_IHDR_DATA_OFFSET = 16
 const PNG_BITS_PER_SAMPLE_OFFSET = PNG_IHDR_DATA_OFFSET + 8
 const PNG_COLOR_TYPE_OFFSET = PNG_IHDR_DATA_OFFSET + 9
+
+// Каждый чанк PNG обрамлен четырьмя байтами длины, четырьмя байтами имени и четырьмя байтами CRC.
+const PNG_CHUNK_HEADER_SIZE = 8
+const PNG_CHUNK_OVERHEAD = 12
 
 const JPEG_MARKER_PREFIX = 0xff
 const JPEG_SEGMENT_START = 2
@@ -65,9 +72,10 @@ function readPngPixelFormat(head: Uint8Array): RasterPixelFormat | null {
     return null
   }
 
+  const colorType: number = head[PNG_COLOR_TYPE_OFFSET]
   const bitsPerSample: number = head[PNG_BITS_PER_SAMPLE_OFFSET]
-  const samplesPerPixel: number | null = getPngSamplesPerPixel(head[PNG_COLOR_TYPE_OFFSET])
-  const colorMode: ImageColorMode | null = getPngColorMode(head[PNG_COLOR_TYPE_OFFSET])
+  const samplesPerPixel: number | null = getPngSamplesPerPixel(colorType)
+  const colorMode: ImageColorMode | null = getPngColorMode(colorType)
 
   if (bitsPerSample <= 0 || samplesPerPixel === null || colorMode === null) {
     return null
@@ -76,7 +84,38 @@ function readPngPixelFormat(head: Uint8Array): RasterPixelFormat | null {
   return {
     colorDepth: bitsPerSample * samplesPerPixel,
     colorMode,
+    hasAlpha: hasPngAlpha(head, colorType),
   }
+}
+
+function hasPngAlpha(head: Uint8Array, colorType: number): boolean {
+  // Типы 4 и 6 хранят альфу в каждом пикселе, у остальных прозрачность задает необязательный чанк tRNS.
+  if (colorType === 4 || colorType === 6) {
+    return true
+  }
+
+  return hasPngTransparencyChunk(head)
+}
+
+function hasPngTransparencyChunk(head: Uint8Array): boolean {
+  let cursor: number = PNG_SIGNATURE_SIZE
+
+  // tRNS по спецификации стоит до первого IDAT, поэтому перебор чанков прекращается на пиксельных данных.
+  while (cursor + PNG_CHUNK_HEADER_SIZE <= head.length) {
+    const chunkName: string = readAsciiTag(head, cursor + 4, 4)
+
+    if (chunkName === 'tRNS') {
+      return true
+    }
+
+    if (chunkName === 'IDAT' || chunkName === 'IEND') {
+      return false
+    }
+
+    cursor += readUint32BigEndian(head, cursor) + PNG_CHUNK_OVERHEAD
+  }
+
+  return false
 }
 
 function getPngSamplesPerPixel(colorType: number): number | null {
@@ -175,6 +214,7 @@ function readJpegFrame(head: Uint8Array, segmentOffset: number): RasterPixelForm
   return {
     colorDepth: bitsPerSample * componentCount,
     colorMode: componentCount === 1 ? 'grayscale' : 'rgb',
+    hasAlpha: false,
   }
 }
 
@@ -214,4 +254,9 @@ function readAsciiTag(head: Uint8Array, offset: number, length: number): string 
 
 function readUint16BigEndian(head: Uint8Array, offset: number): number {
   return (head[offset] << 8) | head[offset + 1]
+}
+
+function readUint32BigEndian(head: Uint8Array, offset: number): number {
+  // Старший байт умножается, а не сдвигается: сдвиг на 24 бита в JS дает знаковый результат.
+  return head[offset] * 0x1000000 + ((head[offset + 1] << 16) | (head[offset + 2] << 8) | head[offset + 3])
 }

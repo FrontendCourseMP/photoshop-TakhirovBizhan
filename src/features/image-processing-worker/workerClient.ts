@@ -1,5 +1,5 @@
 import type { HistogramChannel, HistogramData } from '../histogram/types'
-import type { ChannelPreview } from '../image-channels/types'
+import type { ChannelPreviewImage, ChannelPreviewKind } from '../image-channels/types'
 import type { FilterSettings } from '../image-filters/types'
 import type { LevelsState } from '../image-levels/types'
 import type { InterpolationMethod } from '../image-resize/types'
@@ -128,7 +128,8 @@ export function calculateHistogramInWorker(source: ImageData, channel: Histogram
 export function createChannelPreviewsInWorker(
   source: ImageData,
   maxPreviewSide: number,
-): Promise<readonly ChannelPreview[]> {
+  kinds: readonly ChannelPreviewKind[],
+): Promise<readonly ChannelPreviewImage[]> {
   const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
 
   return runWorkerTask(
@@ -137,6 +138,7 @@ export function createChannelPreviewsInWorker(
       type: 'BUILD_CHANNEL_PREVIEWS',
       source: preparedSource.imageData,
       maxPreviewSide,
+      kinds,
     },
     preparedSource.transfer,
   ).then(assertChannelPreviewsResult)
@@ -256,7 +258,7 @@ function isLevelsPreviewWorkerResult(result: ImageProcessingWorkerResult): resul
   )
 }
 
-function assertChannelPreviewsResult(result: ImageProcessingWorkerResult): readonly ChannelPreview[] {
+function assertChannelPreviewsResult(result: ImageProcessingWorkerResult): readonly ChannelPreviewImage[] {
   if (Array.isArray(result)) {
     return result
   }

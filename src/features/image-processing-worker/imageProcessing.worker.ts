@@ -82,7 +82,7 @@ function runImageProcessingTask(request: ImageProcessingWorkerRequest): ImagePro
 
   // Превью строятся из уменьшенной копии, поэтому в main thread уходят миниатюры,
   // а не полноразмерные ImageData.
-  return createChannelPreviews(fitImageDataToBox(request.source, request.maxPreviewSide))
+  return createChannelPreviews(fitImageDataToBox(request.source, request.maxPreviewSide), request.kinds)
 }
 
 function collectTransferables(result: ImageProcessingWorkerResult): Transferable[] {

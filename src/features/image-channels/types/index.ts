@@ -1,1 +1,8 @@
-export type { ChannelPreview, ChannelPreviewKind, ChannelsState, ColorChannel } from './imageChannels'
+export type {
+  ChannelLayout,
+  ChannelPreviewImage,
+  ChannelPreviewKind,
+  ChannelSlot,
+  ChannelsState,
+  ColorChannel,
+} from './imageChannels'

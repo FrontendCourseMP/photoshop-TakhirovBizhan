@@ -1,5 +1,5 @@
 import type { HistogramChannel, HistogramData } from '../histogram/types'
-import type { ChannelPreview } from '../image-channels/types'
+import type { ChannelPreviewImage, ChannelPreviewKind } from '../image-channels/types'
 import type { FilterSettings } from '../image-filters/types'
 import type { LevelsState } from '../image-levels/types'
 import type { InterpolationMethod } from '../image-resize/types'
@@ -63,6 +63,9 @@ export interface BuildChannelPreviewsWorkerRequest extends ImageProcessingReques
   readonly source: ImageData
   // Размер миниатюры задает панель, а уменьшает изображение Worker.
   readonly maxPreviewSide: number
+  // Состав каналов зависит от формата файла, поэтому Worker не выводит его сам,
+  // а строит ровно те миниатюры, которые панель собирается показать.
+  readonly kinds: readonly ChannelPreviewKind[]
 }
 
 export type ImageProcessingWorkerRequest =
@@ -79,7 +82,7 @@ export interface LevelsPreviewWorkerResult {
   readonly histogram: HistogramData
 }
 
-export type ImageProcessingWorkerResult = ImageData | HistogramData | LevelsPreviewWorkerResult | readonly ChannelPreview[]
+export type ImageProcessingWorkerResult = ImageData | HistogramData | LevelsPreviewWorkerResult | readonly ChannelPreviewImage[]
 
 export interface ImageProcessingWorkerSuccess {
   readonly taskId: number

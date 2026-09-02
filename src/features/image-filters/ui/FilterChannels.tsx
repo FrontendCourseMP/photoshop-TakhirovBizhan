@@ -40,7 +40,7 @@ export function FilterChannels({ selectedChannels, onChannelsChange }: FilterCha
                 handleChannelChange(channel, event.currentTarget.checked)
               }}
             />
-            <span className={`channel-toggle__dot channel-toggle__dot--${channel}`} aria-hidden="true" />
+            <span className={`channel-dot channel-dot--${channel}`} aria-hidden="true" />
             <span>{channelLabels[channel]}</span>
           </label>
         ))}
