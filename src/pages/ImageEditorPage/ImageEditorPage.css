@@ -901,6 +901,92 @@
   font-weight: 700;
 }
 
+.field__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  background: var(--surface-0);
+  transition:
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.tooltip__trigger:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+
+.tooltip__bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: -6px;
+  z-index: 2;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text-inverse);
+  background: rgba(22, 35, 42, 0.95);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: left;
+  
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--transition),
+    visibility 0s linear var(--transition);
+  pointer-events: none;
+}
+
+.tooltip__bubble--visible {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity var(--transition),
+    visibility 0s;
+}
+
+.tooltip__bubble::after {
+  position: absolute;
+  top: 100%;
+  left: 11px;
+  border: 5px solid transparent;
+  border-top-color: rgba(22, 35, 42, 0.95);
+  content: '';
+}
+
+.tooltip__title {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--surface-0);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -989,17 +1075,6 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  line-height: 1.45;
-}
-
-.callout {
-  margin: 0;
-  padding: 8px 10px;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--text-secondary);
-  background: var(--accent-soft);
-  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -1254,6 +1329,19 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: var(--space-4);
   align-items: end;
+}
+
+/* Высота совпадает с полями ввода, поэтому скоба встает на их линию без отдельных отступов. */
+.size-fields__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height);
+  color: var(--text-secondary);
+}
+
+.size-fields__link--off {
+  color: var(--border-strong);
 }
 
 .canvas-viewport,

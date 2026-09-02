@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
 import { Modal } from '../../../shared/ui/Modal'
 import { Icon } from '../../../shared/ui/Icon'
+import { Tooltip } from '../../../shared/ui/Tooltip'
 import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import type { ImageSize } from '../../../shared/types/imageSize'
 import {
@@ -208,23 +209,15 @@ export function ResizeImageDialog({
             value={settings.width}
             onChange={handleWidthChange}
           />
-          <button
-            className={settings.keepAspectRatio ? 'btn btn--icon btn--active' : 'btn btn--icon'}
-            type="button"
-            aria-pressed={settings.keepAspectRatio}
-            title="Keep aspect ratio"
-            aria-label="Keep aspect ratio"
-            onClick={() => {
-              // Toggle меняет только связь размеров; текущие значения не пересчитываются
-              // до следующего изменения width или height.
-              setSettings({
-                ...settings,
-                keepAspectRatio: !settings.keepAspectRatio,
-              })
-            }}
+          {/* Скоба между полями только показывает состояние связи: переключает ее checkbox ниже. */}
+          <span
+            className={
+              settings.keepAspectRatio ? 'size-fields__link' : 'size-fields__link size-fields__link--off'
+            }
+            aria-hidden="true"
           >
             <Icon name="link" />
-          </button>
+          </span>
           <ResizeNumberField
             label={`Height, ${unitLabel}`}
             value={settings.height}
@@ -232,16 +225,41 @@ export function ResizeImageDialog({
           />
         </div>
 
+        <label className="checkbox">
+          <input
+            checked={settings.keepAspectRatio}
+            type="checkbox"
+            onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              // Переключение меняет только связь размеров: текущие значения пересчитываются
+              // при следующем изменении width или height.
+              setSettings({
+                ...settings,
+                keepAspectRatio: event.currentTarget.checked,
+              })
+            }}
+          />
+          <span>Keep aspect ratio</span>
+        </label>
+
         <p className="hint">
           {settings.keepAspectRatio
-            ? 'Aspect ratio is locked: the second dimension follows the one you edit.'
+            ? 'The second dimension follows the one you edit, using the original proportions.'
             : 'Width and height change independently.'}
         </p>
 
-        <label className="field">
-          <span className="field__label">Interpolation</span>
+        <div className="field">
+          <div className="field__heading">
+            <label className="field__label" htmlFor="resize-interpolation">
+              Interpolation
+            </label>
+            <Tooltip label={`What ${selectedAlgorithm.label} interpolation does`}>
+              <strong className="tooltip__title">{selectedAlgorithm.label}</strong>
+              {selectedAlgorithm.description}
+            </Tooltip>
+          </div>
           <select
             className="select"
+            id="resize-interpolation"
             value={settings.interpolationMethod}
             onChange={(event: ChangeEvent<HTMLSelectElement>) => {
               // Значение select проверяется вручную, чтобы в state попал только известный метод.
@@ -260,9 +278,8 @@ export function ResizeImageDialog({
               </option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <p className="callout">{selectedAlgorithm.description}</p>
         {validation.message === null ? null : (
           <p className="error-text" role="alert">
             {validation.message}

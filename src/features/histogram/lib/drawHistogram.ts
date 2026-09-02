@@ -10,6 +10,7 @@ const HISTOGRAM_COLOR: HistogramColor = {
   fill: 'rgba(15, 118, 110, 0.78)',
 }
 
+// Направляющие на четвертях диапазона дают ориентиры по оси яркости внутри самого графика.
 const HISTOGRAM_GUIDE_STOPS: readonly number[] = [0.25, 0.5, 0.75]
 
 const HISTOGRAM_DISPLAY_PERCENTILE = 0.96
@@ -75,7 +76,9 @@ function getDisplayMaxValue(values: readonly number[]): number {
     return 1
   }
 
-
+  // Один доминирующий тон - ровный фон или залитая область - дает пик в разы выше остальных bins.
+  // Нормализация по такому пику превращает остальное распределение в почти пустую линию,
+  // поэтому масштаб берется по перцентилю: пик обрезается, а тональный диапазон остается читаемым.
   const percentileIndex: number = Math.max(Math.floor((nonZeroValues.length - 1) * HISTOGRAM_DISPLAY_PERCENTILE), 0)
 
   return Math.max(nonZeroValues[percentileIndex], 1)

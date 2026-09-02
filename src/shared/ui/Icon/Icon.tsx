@@ -17,6 +17,7 @@ export type IconName =
   | 'reset'
   | 'check'
   | 'link'
+  | 'info'
 
 interface IconProps {
   readonly name: IconName
@@ -61,6 +62,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   reset: ['M3 12a9 9 0 1 0 2.6-6.4L3 8', 'M3 3v5h5'],
   check: ['M20 6 9 17l-5-5'],
   link: ['M9 15 15 9', 'M10.5 6.5 12 5a4.2 4.2 0 0 1 6 6l-1.5 1.5', 'M13.5 17.5 12 19a4.2 4.2 0 0 1-6-6l1.5-1.5'],
+  info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 11v5', 'M12 8h.01'],
 }
 
 export function Icon({ name, size = 16 }: IconProps): JSX.Element {

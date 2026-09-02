@@ -1,6 +1,7 @@
 import type { HistogramChannel, HistogramData } from '../types'
 
-const HISTOGRAM_BIN_COUNT = 256
+// Число bins задано 8-битной сеткой яркости; константа нужна и тем, кто заводит пустую гистограмму.
+export const HISTOGRAM_BIN_COUNT = 256
 
 /**
  * Считает гистограмму на 256 столбцов по неизменяемому ImageData.
