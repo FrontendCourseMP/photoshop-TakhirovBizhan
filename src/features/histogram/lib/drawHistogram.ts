@@ -10,7 +10,6 @@ const HISTOGRAM_COLOR: HistogramColor = {
   fill: 'rgba(15, 118, 110, 0.78)',
 }
 
-// Вертикальные направляющие на четвертях диапазона помогают читать положение black/white точек.
 const HISTOGRAM_GUIDE_STOPS: readonly number[] = [0.25, 0.5, 0.75]
 
 const HISTOGRAM_DISPLAY_PERCENTILE = 0.96
@@ -76,10 +75,7 @@ function getDisplayMaxValue(values: readonly number[]): number {
     return 1
   }
 
-  // После Levels крайние bins 0/255 часто получают очень большие пики из-за clipping.
-  // Если нормализовать график по такому одиночному пику, остальные уровни визуально
-  // превращаются в почти пустую линию. Percentile-масштаб сохраняет пики, но не дает
-  // им скрыть распределение тонов, как это делают графические редакторы.
+
   const percentileIndex: number = Math.max(Math.floor((nonZeroValues.length - 1) * HISTOGRAM_DISPLAY_PERCENTILE), 0)
 
   return Math.max(nonZeroValues[percentileIndex], 1)

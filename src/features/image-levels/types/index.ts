@@ -1,1 +1,8 @@
-export type { LevelsChannel, LevelsRange, LevelsSettings, LevelsState } from './levels'
+export type {
+  LevelsChannel,
+  LevelsChannelOption,
+  LevelsMarker,
+  LevelsRange,
+  LevelsSettings,
+  LevelsState,
+} from './levels'

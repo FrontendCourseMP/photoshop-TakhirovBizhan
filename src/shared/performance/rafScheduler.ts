@@ -4,27 +4,36 @@ export interface RafPreviewScheduler {
 }
 
 export function createRafPreviewScheduler(): RafPreviewScheduler {
-  // frameId хранится в closure, поэтому scheduler можно использовать из hooks
-  // без React state и без лишних render при каждом движении slider.
+  // frameId и pendingTask хранятся в closure, поэтому scheduler можно использовать из hooks
+  // без React state и без лишних render при каждом движении ползунка.
   let frameId: number | null = null
+  let pendingTask: (() => void) | null = null
 
   return {
     schedulePreviewUpdate(task: () => void): void {
+      // Задача заменяется на самую свежую, но уже запрошенный кадр не отменяется.
+      // События input приходят чаще, чем раз в кадр, и перезапрос кадра на каждом из них
+      // отодвигал бы preview до конца перетаскивания вместо одного пересчета на кадр.
+      pendingTask = task
+
       if (frameId !== null) {
-        cancelAnimationFrame(frameId)
+        return
       }
 
-      // Preview может меняться при каждом движении slider; requestAnimationFrame
-      // оставляет только последнюю задачу кадра и снижает нагрузку на UI thread.
       frameId = requestAnimationFrame((): void => {
         frameId = null
-        task()
+
+        const scheduledTask: (() => void) | null = pendingTask
+        pendingTask = null
+        scheduledTask?.()
       })
     },
 
     cancelPreviewUpdate(): void {
       // Отмена нужна при закрытии dialog или выключении preview, чтобы отложенная
       // задача не записала устаревший ImageData после смены состояния.
+      pendingTask = null
+
       if (frameId === null) {
         return
       }

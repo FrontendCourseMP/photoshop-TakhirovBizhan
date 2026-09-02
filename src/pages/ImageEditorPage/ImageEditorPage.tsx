@@ -363,6 +363,7 @@ export function ImageEditorPage(): JSX.Element {
       {image !== null && isLevelsDialogOpen ? (
         <LevelsDialog
           open
+          metadata={image.metadata}
           sourceImageData={image.imageData}
           onApply={handleLevelsApply}
           onCancel={handleLevelsCancel}

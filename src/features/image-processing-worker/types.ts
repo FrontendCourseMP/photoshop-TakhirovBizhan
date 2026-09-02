@@ -7,8 +7,6 @@ import type { ImageSize } from '../../shared/types/imageSize'
 
 export type ImageProcessingTaskType =
   | 'APPLY_LEVELS'
-  | 'APPLY_LEVELS_PREVIEW'
-  | 'BUILD_LEVELS_HISTOGRAM'
   | 'APPLY_3X3_FILTER'
   | 'RESIZE_IMAGE'
   | 'BUILD_HISTOGRAM'
@@ -23,20 +21,6 @@ export interface ApplyLevelsWorkerRequest extends ImageProcessingRequestBase {
   readonly type: 'APPLY_LEVELS'
   readonly source: ImageData
   readonly levelsState: LevelsState
-}
-
-export interface BuildLevelsHistogramWorkerRequest extends ImageProcessingRequestBase {
-  readonly type: 'BUILD_LEVELS_HISTOGRAM'
-  readonly source: ImageData
-  readonly levelsState: LevelsState
-  readonly channel: HistogramChannel
-}
-
-export interface ApplyLevelsPreviewWorkerRequest extends ImageProcessingRequestBase {
-  readonly type: 'APPLY_LEVELS_PREVIEW'
-  readonly source: ImageData
-  readonly levelsState: LevelsState
-  readonly histogramChannel: HistogramChannel
 }
 
 export interface Apply3x3FilterWorkerRequest extends ImageProcessingRequestBase {
@@ -70,19 +54,12 @@ export interface BuildChannelPreviewsWorkerRequest extends ImageProcessingReques
 
 export type ImageProcessingWorkerRequest =
   | ApplyLevelsWorkerRequest
-  | ApplyLevelsPreviewWorkerRequest
-  | BuildLevelsHistogramWorkerRequest
   | Apply3x3FilterWorkerRequest
   | ResizeImageWorkerRequest
   | BuildHistogramWorkerRequest
   | BuildChannelPreviewsWorkerRequest
 
-export interface LevelsPreviewWorkerResult {
-  readonly imageData: ImageData
-  readonly histogram: HistogramData
-}
-
-export type ImageProcessingWorkerResult = ImageData | HistogramData | LevelsPreviewWorkerResult | readonly ChannelPreviewImage[]
+export type ImageProcessingWorkerResult = ImageData | HistogramData | readonly ChannelPreviewImage[]
 
 export interface ImageProcessingWorkerSuccess {
   readonly taskId: number

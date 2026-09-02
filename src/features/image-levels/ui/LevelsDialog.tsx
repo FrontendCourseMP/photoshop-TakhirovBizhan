@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
-import { createRafPreviewScheduler, type RafPreviewScheduler } from '../../../shared/performance/rafScheduler'
+import type { ImageMetadata } from '../../../entities/image/types'
 import { Modal } from '../../../shared/ui/Modal'
 import { Icon } from '../../../shared/ui/Icon'
+import { HISTOGRAM_BIN_COUNT } from '../../histogram/lib/calculateHistogram'
 import { HistogramCanvas } from '../../histogram/ui/HistogramCanvas'
 import type { HistogramData, HistogramMode } from '../../histogram/types'
-import { applyLevelsInWorker, applyLevelsPreviewInWorker } from '../../image-processing-worker/workerClient'
+import { applyLevelsInWorker, calculateHistogramInWorker } from '../../image-processing-worker/workerClient'
+import { useLevelsPreview } from '../hooks/useLevelsPreview'
+import { getMidtoneLevel, levelToPercent } from '../lib/inputLevels'
 import {
   BLACK_POINT_RANGE,
   DEFAULT_LEVELS_STATE,
@@ -13,111 +16,116 @@ import {
   LEVELS_CHANNELS,
   WHITE_POINT_RANGE,
 } from '../model/defaultLevels'
-import type { LevelsChannel, LevelsSettings, LevelsState } from '../types'
+import { resolveLevelsChannels } from '../model/levelsChannels'
+import type { LevelsChannel, LevelsChannelOption, LevelsSettings, LevelsState } from '../types'
+import { InputLevelsTrack } from './InputLevelsTrack'
 
 interface LevelsDialogProps {
   readonly open: boolean
   readonly sourceImageData: ImageData
+  readonly metadata: ImageMetadata
   readonly onPreviewChange: (preview: ImageData | null) => void
   readonly onApply: (imageData: ImageData) => void
   readonly onCancel: () => void
   readonly onProcessingChange?: (isPending: boolean) => void
 }
 
-const channelLabels: Readonly<Record<LevelsChannel, string>> = {
-  master: 'Master',
-  red: 'Red',
-  green: 'Green',
-  blue: 'Blue',
-  alpha: 'Alpha',
+interface HistogramState {
+  readonly sourceImageData: ImageData | null
+  readonly channel: LevelsChannel | null
+  readonly histogram: HistogramData
 }
+
+// Пустая гистограмма показывается, пока Worker не вернул подсчет для текущего канала.
+// Массив только читается, поэтому его можно держать общим для всех render.
+const EMPTY_HISTOGRAM: HistogramData = new Uint32Array(HISTOGRAM_BIN_COUNT)
 
 export function LevelsDialog({
   open,
   sourceImageData,
+  metadata,
   onPreviewChange,
   onApply,
   onCancel,
   onProcessingChange,
 }: LevelsDialogProps): JSX.Element | null {
   // Dialog хранит только UI-состояние Levels: выбранный канал, режим histogram,
-  // включенность preview и настройки каждого канала. Обработка пикселей остается в lib.
+  // включенность preview и настройки каждого канала. Обработка пикселей остается в lib и Worker.
   const [selectedChannel, setSelectedChannel] = useState<LevelsChannel>('master')
   const [histogramMode, setHistogramMode] = useState<HistogramMode>('linear')
   const [previewEnabled, setPreviewEnabled] = useState<boolean>(true)
   const [levelsState, setLevelsState] = useState<LevelsState>(DEFAULT_LEVELS_STATE)
-  const [histogramState, setHistogramState] = useState<{
-    readonly sourceImageData: ImageData | null
-    readonly selectedChannel: LevelsChannel | null
-    readonly histogram: HistogramData
-  }>({
+  const [histogramState, setHistogramState] = useState<HistogramState>({
     sourceImageData: null,
-    selectedChannel: null,
-    histogram: new Uint32Array(256),
+    channel: null,
+    histogram: EMPTY_HISTOGRAM,
   })
   const [isApplying, setIsApplying] = useState<boolean>(false)
-  const previewTaskIdRef = useRef<number>(0)
-  const schedulerRef = useRef<RafPreviewScheduler | null>(null)
-  const selectedSettings: LevelsSettings = levelsState[selectedChannel]
+  const histogramTaskIdRef = useRef<number>(0)
+  const channelOptions: readonly LevelsChannelOption[] = useMemo(
+    (): readonly LevelsChannelOption[] => resolveLevelsChannels(metadata),
+    [metadata],
+  )
+  // В формате может не быть выбранного канала, поэтому активным считается тот, который реально
+  // есть в списке: иначе инструмент правил бы отсутствующий alpha или green.
+  const activeChannel: LevelsChannel = channelOptions.some(
+    (option: LevelsChannelOption): boolean => option.channel === selectedChannel,
+  )
+    ? selectedChannel
+    : channelOptions[0].channel
+  const selectedSettings: LevelsSettings = levelsState[activeChannel]
   const histogram: HistogramData =
-    histogramState.sourceImageData === sourceImageData && histogramState.selectedChannel === selectedChannel
+    histogramState.sourceImageData === sourceImageData && histogramState.channel === activeChannel
       ? histogramState.histogram
-      : new Uint32Array(256)
-  if (schedulerRef.current === null) {
-    schedulerRef.current = createRafPreviewScheduler()
-  }
+      : EMPTY_HISTOGRAM
 
   useEffect((): (() => void) => {
-    const scheduler: RafPreviewScheduler = schedulerRef.current ?? createRafPreviewScheduler()
-    schedulerRef.current = scheduler
-    const taskId: number = previewTaskIdRef.current + 1
-    previewTaskIdRef.current = taskId
+    const taskId: number = histogramTaskIdRef.current + 1
+    histogramTaskIdRef.current = taskId
 
-    if (!previewEnabled) {
-      onPreviewChange(null)
-    }
-
-    scheduler.schedulePreviewUpdate((): void => {
-      // Preview canvas и histogram считаются одной Worker-задачей, чтобы оба результата
-      // соответствовали одним и тем же настройкам Levels и не расходились из-за гонок.
-      void applyLevelsPreviewInWorker(sourceImageData, levelsState, selectedChannel)
-        .then((result): void => {
-          if (previewTaskIdRef.current === taskId) {
-            setHistogramState({
-              sourceImageData,
-              selectedChannel,
-              histogram: result.histogram,
-            })
-
-            if (previewEnabled) {
-              onPreviewChange(result.imageData)
-            }
-          }
-        })
-        .catch((): void => {
-          if (previewTaskIdRef.current === taskId) {
-            setHistogramState({
-              sourceImageData,
-              selectedChannel,
-              histogram: new Uint32Array(256),
-            })
-            onPreviewChange(null)
-          }
-        })
-    })
+    // Гистограмма строится по исходному изображению, а не по результату коррекции: маркеры
+    // входных уровней должны показывать, какую часть исходного распределения они отсекают.
+    // Поэтому пересчет нужен только при смене файла или канала, а не на каждое движение маркера.
+    void calculateHistogramInWorker(sourceImageData, activeChannel)
+      .then((nextHistogram: HistogramData): void => {
+        if (histogramTaskIdRef.current === taskId) {
+          setHistogramState({ sourceImageData, channel: activeChannel, histogram: nextHistogram })
+        }
+      })
+      .catch((): void => {
+        if (histogramTaskIdRef.current === taskId) {
+          setHistogramState({ sourceImageData, channel: activeChannel, histogram: EMPTY_HISTOGRAM })
+        }
+      })
 
     return (): void => {
-      previewTaskIdRef.current += 1
-      scheduler.cancelPreviewUpdate()
+      histogramTaskIdRef.current += 1
     }
-  }, [levelsState, onPreviewChange, previewEnabled, selectedChannel, sourceImageData])
+  }, [activeChannel, sourceImageData])
+
+  useLevelsPreview({
+    sourceImageData,
+    levelsState,
+    previewEnabled,
+    onPreviewChange,
+  })
 
   function updateSelectedSettings(nextSettings: LevelsSettings): void {
+    // Маркер, упершийся в соседний, отдает одно и то же значение на каждом pointermove.
+    // Без этой проверки каждый такой шаг создавал бы новый state и лишний пересчет preview.
+    if (
+      nextSettings.blackPoint === selectedSettings.blackPoint &&
+      nextSettings.whitePoint === selectedSettings.whitePoint &&
+      nextSettings.gamma === selectedSettings.gamma
+    ) {
+      return
+    }
+
     // Настройки хранятся отдельно для каждого канала, поэтому переключение Master/R/G/B/A
     // не сбрасывает уже выставленные black/white/gamma значения.
     setLevelsState((currentState: LevelsState): LevelsState => ({
       ...currentState,
-      [selectedChannel]: nextSettings,
+      [activeChannel]: nextSettings,
     }))
   }
 
@@ -199,7 +207,7 @@ export function LevelsDialog({
             <span className="field__label">Channel</span>
             <select
               className="select"
-              value={selectedChannel}
+              value={activeChannel}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 const nextChannel: LevelsChannel | null = parseLevelsChannel(event.currentTarget.value)
 
@@ -208,9 +216,9 @@ export function LevelsDialog({
                 }
               }}
             >
-              {LEVELS_CHANNELS.map((channel: LevelsChannel) => (
-                <option key={channel} value={channel}>
-                  {channelLabels[channel]}
+              {channelOptions.map((option: LevelsChannelOption) => (
+                <option key={option.channel} value={option.channel}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -245,12 +253,33 @@ export function LevelsDialog({
           </fieldset>
         </div>
 
-        <div className="levels__histogram">
-          <HistogramCanvas histogram={histogram} mode={histogramMode} />
+        <div className="levels__graph">
+          <div className="levels__histogram">
+            <HistogramCanvas histogram={histogram} mode={histogramMode} />
+            {/* Затемнение отмечает тона, которые уйдут в чистый черный и чистый белый,
+                а вертикальная линия показывает положение полутонового маркера. */}
+            <span
+              className="levels-clip levels-clip--shadows"
+              style={{ width: `${levelToPercent(selectedSettings.blackPoint)}%` }}
+              aria-hidden="true"
+            />
+            <span
+              className="levels-clip levels-clip--highlights"
+              style={{ width: `${100 - levelToPercent(selectedSettings.whitePoint)}%` }}
+              aria-hidden="true"
+            />
+            <span
+              className="levels-midtone-line"
+              style={{ left: `${levelToPercent(getMidtoneLevel(selectedSettings))}%` }}
+              aria-hidden="true"
+            />
+          </div>
+
+          <InputLevelsTrack settings={selectedSettings} onChange={updateSelectedSettings} />
         </div>
 
-        <div className="levels__controls">
-          <LevelsControl
+        <div className="levels__inputs" role="group" aria-label="Input levels">
+          <LevelsNumberField
             label="Black"
             max={selectedSettings.whitePoint - 1}
             min={BLACK_POINT_RANGE.min}
@@ -258,7 +287,7 @@ export function LevelsDialog({
             value={selectedSettings.blackPoint}
             onChange={handleBlackPointChange}
           />
-          <LevelsControl
+          <LevelsNumberField
             label="Gamma"
             max={GAMMA_RANGE.max}
             min={GAMMA_RANGE.min}
@@ -266,7 +295,7 @@ export function LevelsDialog({
             value={selectedSettings.gamma}
             onChange={handleGammaChange}
           />
-          <LevelsControl
+          <LevelsNumberField
             label="White"
             max={WHITE_POINT_RANGE.max}
             min={selectedSettings.blackPoint + 1}
@@ -313,7 +342,7 @@ export function LevelsDialog({
   )
 }
 
-interface LevelsControlProps {
+interface LevelsNumberFieldProps {
   readonly label: string
   readonly min: number
   readonly max: number
@@ -322,18 +351,23 @@ interface LevelsControlProps {
   readonly onChange: (value: number) => void
 }
 
-function LevelsControl({ label, min, max, step, value, onChange }: LevelsControlProps): JSX.Element {
-  function handleChange(event: ChangeEvent<HTMLInputElement>): void {
-    // Range и number input используют один обработчик, чтобы оба контрола всегда
-    // работали с одинаковыми ограничениями выбранного параметра.
-    onChange(Number(event.currentTarget.value))
-  }
-
+function LevelsNumberField({ label, min, max, step, value, onChange }: LevelsNumberFieldProps): JSX.Element {
+  // Числовое поле дублирует маркер оси: через него значение задается точно
+  // и остается доступным без перетаскивания.
   return (
-    <label className="slider">
-      <span className="slider__label">{label}</span>
-      <input className="slider__range" max={max} min={min} step={step} type="range" value={value} onChange={handleChange} />
-      <input className="input slider__number" max={max} min={min} step={step} type="number" value={value} onChange={handleChange} />
+    <label className="levels-field">
+      <span className="levels-field__label">{label}</span>
+      <input
+        className="input levels-field__input"
+        max={max}
+        min={min}
+        step={step}
+        type="number"
+        value={value}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          onChange(Number(event.currentTarget.value))
+        }}
+      />
     </label>
   )
 }
