@@ -1,4 +1,5 @@
-import type { FilterSettings, KernelPreset } from '../types'
+import type { FilterSettings, Kernel3x3, KernelPreset } from '../types'
+
 
 export const DEFAULT_FILTER_CHANNELS = ['red', 'green', 'blue'] as const
 
@@ -58,4 +59,25 @@ export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
   previewEnabled: true,
   divisor: 1,
   offset: 0,
+}
+
+/**
+ * Находит preset, которому в точности соответствуют текущие параметры свертки.
+ * Возвращает null для отредактированной вручную матрицы: такое состояние preset не описывает.
+ */
+export function findMatchingPreset(settings: FilterSettings): KernelPreset | null {
+  const preset: KernelPreset | undefined = FILTER_KERNEL_PRESETS.find((item: KernelPreset): boolean => {
+    // Сравниваются и нормализация тоже: одно и то же ядро с разным divisor дает разный результат.
+    return (
+      isSameKernel(item.kernel, settings.kernel) &&
+      (item.divisor ?? 1) === (settings.divisor ?? 1) &&
+      (item.offset ?? 0) === (settings.offset ?? 0)
+    )
+  })
+
+  return preset ?? null
+}
+
+function isSameKernel(left: Kernel3x3, right: Kernel3x3): boolean {
+  return left.every((value: number, index: number): boolean => value === right[index])
 }

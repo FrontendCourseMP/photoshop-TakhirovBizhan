@@ -1,6 +1,16 @@
 // FilterChannel задает компоненты ImageData, к которым применяется kernel.
 export type FilterChannel = 'red' | 'green' | 'blue' | 'alpha'
 
+// У grayscale-файла отдельных цветовых компонент нет, поэтому один вариант выбора
+// может отвечать сразу за несколько байтов пикселя.
+export type FilterChannelOptionId = 'luma' | FilterChannel
+
+export interface FilterChannelOption {
+  readonly id: FilterChannelOptionId
+  readonly label: string
+  readonly channels: readonly FilterChannel[]
+}
+
 // Strategy определяет, какие пиксели использовать, когда окно 3x3 выходит за границу изображения.
 export type EdgeHandlingStrategy = 'black' | 'white' | 'copy'
 

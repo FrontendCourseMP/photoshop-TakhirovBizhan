@@ -1,47 +1,31 @@
-import type { ChangeEvent, JSX } from 'react'
-import type { FilterChannel } from '../types'
+import type { JSX } from 'react'
+import { isFilterOptionSelected, toggleFilterOption } from '../model/filterChannels'
+import type { FilterChannel, FilterChannelOption } from '../types'
 
 interface FilterChannelsProps {
+  readonly options: readonly FilterChannelOption[]
   readonly selectedChannels: readonly FilterChannel[]
   readonly onChannelsChange: (channels: readonly FilterChannel[]) => void
 }
 
-const FILTER_CHANNELS: readonly FilterChannel[] = ['red', 'green', 'blue', 'alpha']
-
-const channelLabels: Readonly<Record<FilterChannel, string>> = {
-  red: 'Red',
-  green: 'Green',
-  blue: 'Blue',
-  alpha: 'Alpha',
-}
-
-export function FilterChannels({ selectedChannels, onChannelsChange }: FilterChannelsProps): JSX.Element {
-  function handleChannelChange(channel: FilterChannel, checked: boolean): void {
-    // Каналы фильтра хранятся как immutable список, чтобы React корректно увидел
-    // изменение settings и перезапустил preview.
-    if (checked) {
-      onChannelsChange([...selectedChannels, channel])
-      return
-    }
-
-    onChannelsChange(selectedChannels.filter((selectedChannel: FilterChannel): boolean => selectedChannel !== channel))
-  }
-
+export function FilterChannels({ options, selectedChannels, onChannelsChange }: FilterChannelsProps): JSX.Element {
   return (
     <fieldset className="field checkbox-group">
       <legend className="field__label">Channels</legend>
       <div className="checkbox-group__options">
-        {FILTER_CHANNELS.map((channel: FilterChannel) => (
-          <label className="checkbox" key={channel}>
+        {options.map((option: FilterChannelOption) => (
+          <label className="checkbox" key={option.id}>
             <input
-              checked={selectedChannels.includes(channel)}
+              checked={isFilterOptionSelected(option, selectedChannels)}
               type="checkbox"
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                handleChannelChange(channel, event.currentTarget.checked)
+              onChange={() => {
+                // Состояние самого checkbox не читается: вариант выбора может отвечать
+                // сразу за несколько компонентов, поэтому набор каналов пересобирается целиком.
+                onChannelsChange(toggleFilterOption(option, selectedChannels))
               }}
             />
-            <span className={`channel-dot channel-dot--${channel}`} aria-hidden="true" />
-            <span>{channelLabels[channel]}</span>
+            <span className={`channel-dot channel-dot--${option.id}`} aria-hidden="true" />
+            <span>{option.label}</span>
           </label>
         ))}
       </div>

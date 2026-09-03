@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ChangeEvent, JSX } from 'react'
+import type { ImageMetadata } from '../../../entities/image/types'
 import { Modal } from '../../../shared/ui/Modal'
 import { Icon } from '../../../shared/ui/Icon'
 import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
 import { applyKernel3x3InWorker } from '../../image-processing-worker/workerClient'
 import { useFiltersDialog } from '../hooks/useFiltersDialog'
-import type { EdgeHandlingStrategy, Kernel3x3, KernelPreset } from '../types'
+import { resolveFilterChannels } from '../model/filterChannels'
+import type { EdgeHandlingStrategy, FilterChannelOption, Kernel3x3, KernelPreset } from '../types'
 import { EdgeHandlingSelect } from './EdgeHandlingSelect'
 import { FilterChannels } from './FilterChannels'
 import { FilterPresetsSelect } from './FilterPresetsSelect'
@@ -14,6 +16,7 @@ import { KernelGrid } from './KernelGrid'
 interface FiltersDialogProps {
   readonly open: boolean
   readonly sourceImageData: ImageData
+  readonly metadata: ImageMetadata
   readonly onPreviewChange: (imageData: ImageData | null) => void
   readonly onApply: (imageData: ImageData) => void
   readonly onCancel: () => void
@@ -23,6 +26,7 @@ interface FiltersDialogProps {
 export function FiltersDialog({
   open,
   sourceImageData,
+  metadata,
   onPreviewChange,
   onApply,
   onCancel,
@@ -35,6 +39,10 @@ export function FiltersDialog({
     onPreviewChange,
   })
   const [isApplying, setIsApplying] = useState<boolean>(false)
+  const channelOptions: readonly FilterChannelOption[] = useMemo(
+    (): readonly FilterChannelOption[] => resolveFilterChannels(metadata),
+    [metadata],
+  )
   // Алгоритм заменяет нулевой и нечисловой divisor на 1, поэтому поле должно об этом сказать.
   const divisor: number = settings.divisor ?? 1
   const isDivisorApplied: boolean = Number.isFinite(divisor) && divisor !== 0
@@ -77,6 +85,7 @@ export function FiltersDialog({
       <div className="filters">
         <div className="form-row">
           <FilterPresetsSelect
+            settings={settings}
             onPresetSelect={(preset: KernelPreset) => {
               // Preset заменяет только параметры свертки, сохраняя остальные настройки dialog
               // вроде edge handling, выбранных каналов и preview.
@@ -156,6 +165,7 @@ export function FiltersDialog({
         </div>
 
         <FilterChannels
+          options={channelOptions}
           selectedChannels={settings.selectedChannels}
           onChannelsChange={(selectedChannels) => {
             // Маска каналов позволяет применять kernel только к выбранным компонентам RGBA.

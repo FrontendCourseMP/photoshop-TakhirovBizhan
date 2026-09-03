@@ -391,6 +391,7 @@ export function ImageEditorPage(): JSX.Element {
       {image !== null && isFiltersDialogOpen ? (
         <FiltersDialog
           open
+          metadata={image.metadata}
           sourceImageData={image.imageData}
           onApply={handleFiltersApply}
           onCancel={() => {
