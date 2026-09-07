@@ -1,5 +1,5 @@
 import type { HistogramChannel, HistogramData } from '../histogram/types'
-import type { ChannelPreviewImage, ChannelPreviewKind } from '../image-channels/types'
+import type { ChannelsState } from '../image-channels/types'
 import type { FilterSettings } from '../image-filters/types'
 import type { LevelsState } from '../image-levels/types'
 import type { InterpolationMethod } from '../image-resize/types'
@@ -10,7 +10,10 @@ export type ImageProcessingTaskType =
   | 'APPLY_3X3_FILTER'
   | 'RESIZE_IMAGE'
   | 'BUILD_HISTOGRAM'
-  | 'BUILD_CHANNEL_PREVIEWS'
+  | 'APPLY_CHANNELS'
+  | 'PREPARE_PREVIEW_SOURCE'
+  | 'PREVIEW_LEVELS'
+  | 'PREVIEW_3X3_FILTER'
 
 interface ImageProcessingRequestBase {
   readonly taskId: number
@@ -42,14 +45,28 @@ export interface BuildHistogramWorkerRequest extends ImageProcessingRequestBase 
   readonly channel: HistogramChannel
 }
 
-export interface BuildChannelPreviewsWorkerRequest extends ImageProcessingRequestBase {
-  readonly type: 'BUILD_CHANNEL_PREVIEWS'
+export interface ApplyChannelsWorkerRequest extends ImageProcessingRequestBase {
+  readonly type: 'APPLY_CHANNELS'
   readonly source: ImageData
-  // Размер миниатюры задает панель, а уменьшает изображение Worker.
-  readonly maxPreviewSide: number
-  // Состав каналов зависит от формата файла, поэтому Worker не выводит его сам,
-  // а строит ровно те миниатюры, которые панель собирается показать.
-  readonly kinds: readonly ChannelPreviewKind[]
+  readonly channels: ChannelsState
+  readonly hasAlphaChannel: boolean
+}
+
+// Готовит кадр для серии live-preview запросов (Levels/Filters): Worker запоминает его
+// один раз на сессию, поэтому PREVIEW_* сообщения ниже не таскают исходник на каждый кадр.
+export interface PreparePreviewSourceWorkerRequest extends ImageProcessingRequestBase {
+  readonly type: 'PREPARE_PREVIEW_SOURCE'
+  readonly source: ImageData
+}
+
+export interface PreviewLevelsWorkerRequest extends ImageProcessingRequestBase {
+  readonly type: 'PREVIEW_LEVELS'
+  readonly levelsState: LevelsState
+}
+
+export interface Preview3x3FilterWorkerRequest extends ImageProcessingRequestBase {
+  readonly type: 'PREVIEW_3X3_FILTER'
+  readonly settings: FilterSettings
 }
 
 export type ImageProcessingWorkerRequest =
@@ -57,9 +74,17 @@ export type ImageProcessingWorkerRequest =
   | Apply3x3FilterWorkerRequest
   | ResizeImageWorkerRequest
   | BuildHistogramWorkerRequest
-  | BuildChannelPreviewsWorkerRequest
+  | ApplyChannelsWorkerRequest
+  | PreparePreviewSourceWorkerRequest
+  | PreviewLevelsWorkerRequest
+  | Preview3x3FilterWorkerRequest
 
-export type ImageProcessingWorkerResult = ImageData | HistogramData | readonly ChannelPreviewImage[]
+// Ack не переносит пиксели - только подтверждает, что Worker сохранил кадр для PREVIEW_* запросов.
+export interface PreparePreviewSourceAck {
+  readonly prepared: true
+}
+
+export type ImageProcessingWorkerResult = ImageData | HistogramData | PreparePreviewSourceAck
 
 export interface ImageProcessingWorkerSuccess {
   readonly taskId: number

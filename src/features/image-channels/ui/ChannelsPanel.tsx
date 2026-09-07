@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import type { JSX } from 'react'
 import { Icon } from '../../../shared/ui/Icon'
-import { OperationLoader } from '../../../shared/ui/OperationLoader/OperationLoader'
-import { createChannelPreviewsInWorker } from '../../image-processing-worker/workerClient'
+import { createChannelPreviews } from '../lib/imageChannels'
+import { fitImageDataToBox } from '../lib/previewScale'
 import { DEFAULT_CHANNELS_STATE } from '../model/channelState'
 import { CHANNEL_PREVIEW_MAX_SIDE } from '../model/previewSize'
 import type {
@@ -22,58 +22,28 @@ interface ChannelsPanelProps {
   readonly onChannelsChange: (channels: ChannelsState) => void
 }
 
-interface ChannelPreviewsState {
-  readonly sourceImageData: ImageData | null
-  readonly previews: readonly ChannelPreviewImage[]
-}
-
 export function ChannelsPanel({
   sourceImageData,
   layout,
   channels,
   onChannelsChange,
 }: ChannelsPanelProps): JSX.Element {
-  const [previewsState, setPreviewsState] = useState<ChannelPreviewsState>({
-    sourceImageData: null,
-    previews: [],
-  })
-  const previewTaskIdRef = useRef<number>(0)
   const previewKinds: readonly ChannelPreviewKind[] = useMemo((): readonly ChannelPreviewKind[] => {
     return layout === null ? [] : layout.slots.map((slot: ChannelSlot): ChannelPreviewKind => slot.kind)
   }, [layout])
-  // Пока Worker считает миниатюры для нового файла, показывать превью прошлого изображения нельзя:
-  // они относятся к другим пикселям и к другой раскладке каналов.
-  const isPreviewsReady: boolean = previewsState.sourceImageData === sourceImageData
-  const previews: readonly ChannelPreviewImage[] = isPreviewsReady ? previewsState.previews : []
-  const isPreviewsPending: boolean = sourceImageData !== null && !isPreviewsReady
 
-  useEffect((): (() => void) | void => {
+  // Каналы разбираются из sourceImageData, а не из уже отфильтрованной картинки на главном canvas,
+  // иначе выключенный канал давал бы черную миниатюру и его нельзя было бы вернуть осознанно.
+  const previews: readonly ChannelPreviewImage[] = useMemo((): readonly ChannelPreviewImage[] => {
     if (sourceImageData === null || previewKinds.length === 0) {
-      previewTaskIdRef.current += 1
-      return undefined
+      return []
     }
 
-    const taskId: number = previewTaskIdRef.current + 1
-    previewTaskIdRef.current = taskId
+    // Уменьшение через drawImage - аппаратный downscale, поэтому разбор миниатюр укладывается
+    // в один синхронный проход при рендере.
+    const thumbnail: ImageData = fitImageDataToBox(sourceImageData, CHANNEL_PREVIEW_MAX_SIDE)
 
-    // Каналы разбираются из sourceImageData, а не из уже отфильтрованной картинки на главном canvas,
-    // иначе выключенный канал давал бы черную миниатюру и его нельзя было бы вернуть осознанно.
-    // Сам разбор идет в Worker и ограничен размером миниатюры.
-    void createChannelPreviewsInWorker(sourceImageData, CHANNEL_PREVIEW_MAX_SIDE, previewKinds)
-      .then((nextPreviews: readonly ChannelPreviewImage[]): void => {
-        if (previewTaskIdRef.current === taskId) {
-          setPreviewsState({ sourceImageData, previews: nextPreviews })
-        }
-      })
-      .catch((): void => {
-        if (previewTaskIdRef.current === taskId) {
-          setPreviewsState({ sourceImageData, previews: [] })
-        }
-      })
-
-    return (): void => {
-      previewTaskIdRef.current += 1
-    }
+    return createChannelPreviews(thumbnail, previewKinds)
   }, [previewKinds, sourceImageData])
 
   function isSlotVisible(slot: ChannelSlot): boolean {
@@ -120,7 +90,6 @@ export function ChannelsPanel({
       </header>
 
       <div className="channel-grid">
-        <OperationLoader active={isPreviewsPending} label="Building channel previews…" />
         {layout === null || previews.length === 0 ? (
           <p className="panel__empty">
             {sourceImageData === null ? 'Open an image to inspect its channels' : 'Preparing previews…'}

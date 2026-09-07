@@ -2,11 +2,24 @@
 // Исходный массив пикселей модуль не меняет, поэтому пипетка и экспорт работают с полными данными.
 import type { ChannelPreviewImage, ChannelPreviewKind, ChannelsState } from '../types'
 
+/**
+ * true, если хотя бы один канал погашен и applyChannelsToImageData реально изменит пиксели.
+ * Когда видны все четыре компонента, проход по пикселям все равно вернул бы source побайтово -
+ * его можно пропустить целиком, а не гонять полное изображение через Worker впустую.
+ */
+export function hasActiveChannelMask(channels: ChannelsState): boolean {
+  return !channels.red || !channels.green || !channels.blue || !channels.alpha
+}
+
 export function applyChannelsToImageData(
   source: ImageData,
   channels: ChannelsState,
   hasAlphaChannel: boolean,
 ): ImageData {
+  if (!hasActiveChannelMask(channels)) {
+    return source
+  }
+
   const output: ImageData = createEmptyImageData(source.width, source.height)
   // Маска прозрачности показывается только тогда, когда альфа есть в самом формате файла.
   // Для RGB или grayscale без альфы погашенные цветовые каналы должны давать черный кадр,

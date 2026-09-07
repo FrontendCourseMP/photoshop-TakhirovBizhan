@@ -21,8 +21,8 @@ export function createLevelsLUT(settings: LevelsSettings): Uint8Array {
     // Значение сначала переводится в диапазон 0..1 между blackPoint и whitePoint.
     // Все, что левее blackPoint, становится 0; все, что правее whitePoint, становится 1.
     const normalized: number = clamp((value - blackPoint) / range, 0, 1)
-    // Значение gamma меньше 1 осветляет средние тона, больше 1 затемняет.
-    const corrected: number = Number.isFinite(gamma) ? normalized ** gamma : normalized
+    // Экспонента обратная: normalized ** (1/gamma), а не normalized ** gamma.
+    const corrected: number = Number.isFinite(gamma) ? normalized ** (1 / gamma) : normalized
 
     lut[value] = clamp(Math.round(corrected * 255), 0, 255)
   }

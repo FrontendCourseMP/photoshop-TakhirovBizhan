@@ -825,10 +825,6 @@
   width: min(620px, calc(100vw - 32px));
 }
 
-.dialog::backdrop {
-  background: rgba(22, 35, 42, 0.3);
-}
-
 .dialog__panel {
   display: flex;
   flex-direction: column;
@@ -1256,6 +1252,10 @@
   display: grid;
   align-content: start;
   gap: var(--space-4);
+}
+
+.filters__status {
+  min-height: 28px;
 }
 
 .kernel-grid {

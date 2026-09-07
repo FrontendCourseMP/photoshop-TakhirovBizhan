@@ -13,10 +13,13 @@ import type {
   ColorPickerResult,
   ImageCoordinates,
 } from "../../features/color-picker/types";
-import { applyChannelsToImageData } from "../../features/image-channels/lib/imageChannels";
+import { useChannelMask } from "../../features/image-channels/hooks/useChannelMask";
 import { resolveChannelLayout } from "../../features/image-channels/model/channelLayout";
 import { DEFAULT_CHANNELS_STATE } from "../../features/image-channels/model/channelState";
-import type { ChannelLayout, ChannelsState } from "../../features/image-channels/types";
+import type {
+  ChannelLayout,
+  ChannelsState,
+} from "../../features/image-channels/types";
 import { ChannelsPanel } from "../../features/image-channels/ui/ChannelsPanel";
 import { FiltersDialog } from "../../features/image-filters/ui/FiltersDialog";
 import { LevelsDialog } from "../../features/image-levels/ui/LevelsDialog";
@@ -40,7 +43,7 @@ import type { ImageSize } from "../../shared/types/imageSize";
 import { Icon } from "../../shared/ui/Icon";
 import "./ImageEditorPage.css";
 
-type CanvasOperationScope = "levels" | "filters" | "resize";
+type CanvasOperationScope = "levels" | "filters" | "resize" | "channels";
 
 type CanvasOperationState = Partial<Record<CanvasOperationScope, string>>;
 
@@ -48,18 +51,27 @@ export function ImageEditorPage(): JSX.Element {
   // Page-слой хранит состояние редактора и связывает features между собой.
   // Сами алгоритмы обработки пикселей остаются в lib-модулях конкретных features.
   const [image, setImage] = useState<EditableImage | null>(null);
-  const [channels, setChannels] = useState<ChannelsState>(DEFAULT_CHANNELS_STATE);
+  const [channels, setChannels] = useState<ChannelsState>(
+    DEFAULT_CHANNELS_STATE
+  );
   const [displayScalePercent, setDisplayScalePercent] = useState<number>(100);
-  const [canvasViewportSize, setCanvasViewportSize] = useState<ImageSize | null>(null);
-  const [levelsPreviewImageData, setLevelsPreviewImageData] = useState<ImageData | null>(null);
-  const [filterPreviewImageData, setFilterPreviewImageData] = useState<ImageData | null>(null);
+  const [canvasViewportSize, setCanvasViewportSize] =
+    useState<ImageSize | null>(null);
+  const [levelsPreviewImageData, setLevelsPreviewImageData] =
+    useState<ImageData | null>(null);
+  const [filterPreviewImageData, setFilterPreviewImageData] =
+    useState<ImageData | null>(null);
   const [isLevelsDialogOpen, setIsLevelsDialogOpen] = useState<boolean>(false);
   const [isResizeDialogOpen, setIsResizeDialogOpen] = useState<boolean>(false);
-  const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState<boolean>(false);
-  const [isColorPickerActive, setIsColorPickerActive] = useState<boolean>(false);
-  const [colorPickerResult, setColorPickerResult] = useState<ColorPickerResult | null>(null);
+  const [isFiltersDialogOpen, setIsFiltersDialogOpen] =
+    useState<boolean>(false);
+  const [isColorPickerActive, setIsColorPickerActive] =
+    useState<boolean>(false);
+  const [colorPickerResult, setColorPickerResult] =
+    useState<ColorPickerResult | null>(null);
   const [exportFormat, setExportFormat] = useState<ImageFileFormat>("png");
-  const [canvasOperations, setCanvasOperations] = useState<CanvasOperationState>({});
+  const [canvasOperations, setCanvasOperations] =
+    useState<CanvasOperationState>({});
   const [error, setError] = useState<FileProcessingError | null>(null);
 
   const upload = useImageUpload({
@@ -69,22 +81,30 @@ export function ImageEditorPage(): JSX.Element {
   const download = useImageDownload({ onError: handleError });
 
   function showLoader(scope: CanvasOperationScope, label: string): void {
-    setCanvasOperations((currentOperations: CanvasOperationState): CanvasOperationState => ({
-      ...currentOperations,
-      [scope]: label,
-    }));
+    setCanvasOperations(
+      (currentOperations: CanvasOperationState): CanvasOperationState => ({
+        ...currentOperations,
+        [scope]: label,
+      })
+    );
   }
 
   function hideLoader(scope: CanvasOperationScope): void {
-    setCanvasOperations((currentOperations: CanvasOperationState): CanvasOperationState => {
-      const nextOperations: CanvasOperationState = { ...currentOperations };
-      delete nextOperations[scope];
+    setCanvasOperations(
+      (currentOperations: CanvasOperationState): CanvasOperationState => {
+        const nextOperations: CanvasOperationState = { ...currentOperations };
+        delete nextOperations[scope];
 
-      return nextOperations;
-    });
+        return nextOperations;
+      }
+    );
   }
 
-  function setOperationPending(scope: CanvasOperationScope, isPending: boolean, label: string): void {
+  function setOperationPending(
+    scope: CanvasOperationScope,
+    isPending: boolean,
+    label: string
+  ): void {
     // Page-слой ведет несколько независимых canvas-операций, чтобы один завершившийся Worker
     // не скрывал loader другой операции, которая еще выполняется.
     if (isPending) {
@@ -101,7 +121,11 @@ export function ImageEditorPage(): JSX.Element {
     const initialScalePercent: number =
       canvasViewportSize === null
         ? 100
-        : calculateInitialDisplayScale(nextImage.imageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX);
+        : calculateInitialDisplayScale(
+            nextImage.imageData,
+            canvasViewportSize,
+            INITIAL_SCALE_PADDING_PX
+          );
 
     setImage(nextImage);
     setChannels(DEFAULT_CHANNELS_STATE);
@@ -125,11 +149,19 @@ export function ImageEditorPage(): JSX.Element {
       return;
     }
 
-    setDisplayScalePercent(calculateFitScalePercent(image.imageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX));
+    setDisplayScalePercent(
+      calculateFitScalePercent(
+        image.imageData,
+        canvasViewportSize,
+        INITIAL_SCALE_PADDING_PX
+      )
+    );
   }
 
   function handleZoomStep(direction: 1 | -1): void {
-    setDisplayScalePercent((currentPercent: number): number => getZoomedScalePercent(currentPercent, direction));
+    setDisplayScalePercent((currentPercent: number): number =>
+      getZoomedScalePercent(currentPercent, direction)
+    );
   }
 
   function handleExport(): void {
@@ -152,10 +184,15 @@ export function ImageEditorPage(): JSX.Element {
     }
 
     // Apply сохраняет результат Levels как новое основное состояние изображения.
-    // Метаданные размера не меняются, потому что градационная коррекция не меняет геометрию.
+    // Метаданные размера не меняются, потому что градационная коррекция не меняет геометрию,
+    // но байты исходного файла уже не описывают текущие пиксели - fileSizeBytes сбрасывается.
     setImage({
       ...image,
       imageData: nextImageData,
+      metadata: {
+        ...image.metadata,
+        fileSizeBytes: 0,
+      },
     });
     setLevelsPreviewImageData(null);
     setIsLevelsDialogOpen(false);
@@ -172,7 +209,11 @@ export function ImageEditorPage(): JSX.Element {
     const nextScalePercent: number =
       canvasViewportSize === null
         ? displayScalePercent
-        : calculateInitialDisplayScale(nextImageData, canvasViewportSize, INITIAL_SCALE_PADDING_PX);
+        : calculateInitialDisplayScale(
+            nextImageData,
+            canvasViewportSize,
+            INITIAL_SCALE_PADDING_PX
+          );
 
     setImage({
       ...image,
@@ -181,6 +222,7 @@ export function ImageEditorPage(): JSX.Element {
         ...image.metadata,
         width: nextImageData.width,
         height: nextImageData.height,
+        fileSizeBytes: 0,
       },
     });
     setDisplayScalePercent(nextScalePercent);
@@ -195,52 +237,75 @@ export function ImageEditorPage(): JSX.Element {
 
     // Фильтры применяются к основному imageData только после подтверждения в dialog.
     // До этого canvas получает отдельный preview через filterPreviewImageData.
+    // Байты исходного файла уже не описывают отфильтрованные пиксели - fileSizeBytes сбрасывается.
     setImage({
       ...image,
       imageData: nextImageData,
+      metadata: {
+        ...image.metadata,
+        fileSizeBytes: 0,
+      },
     });
     setFilterPreviewImageData(null);
     setIsFiltersDialogOpen(false);
     setColorPickerResult(null);
   }
 
-  const channelLayout: ChannelLayout | null = useMemo((): ChannelLayout | null => {
-    // Набор каналов определяется форматом открытого файла и не зависит от текущих preview,
-    // поэтому раскладка пересчитывается только при смене изображения.
-    return image === null ? null : resolveChannelLayout(image.metadata);
-  }, [image]);
+  const channelLayout: ChannelLayout | null =
+    useMemo((): ChannelLayout | null => {
+      // Набор каналов определяется форматом открытого файла и не зависит от текущих preview,
+      // поэтому раскладка пересчитывается только при смене изображения.
+      return image === null ? null : resolveChannelLayout(image.metadata);
+    }, [image]);
 
-  const displayedImageData: ImageData | null = useMemo((): ImageData | null => {
-    // Canvas всегда получает уже готовую версию для отображения:
-    // сначала активный preview фильтров, затем preview Levels, затем оригинальное imageData.
-    // Каналы накладываются поверх выбранной базы и не мутируют исходные пиксели.
+  const baseImageData: ImageData | null = useMemo((): ImageData | null => {
+    // База для отображения: сначала активный preview фильтров, затем preview Levels,
+    // затем оригинальное imageData. Сами каналы накладываются поверх нее хуком ниже.
     if (image === null) {
       return null;
     }
 
-    const baseImageData: ImageData = filterPreviewImageData ?? levelsPreviewImageData ?? image.imageData;
+    return filterPreviewImageData ?? levelsPreviewImageData ?? image.imageData;
+  }, [filterPreviewImageData, image, levelsPreviewImageData]);
 
-    return applyChannelsToImageData(baseImageData, channels, image.metadata.hasAlpha);
-  }, [channels, filterPreviewImageData, image, levelsPreviewImageData]);
-  const canvasOperationLabels: readonly string[] = Object.values(canvasOperations);
-  const canvasProcessingLabel: string = canvasOperationLabels[canvasOperationLabels.length - 1] ?? "Processing image…";
+  const displayedImageData: ImageData | null = useChannelMask({
+    baseImageData,
+    channels,
+    hasAlphaChannel: image?.metadata.hasAlpha ?? false,
+    onProcessingChange: (isPending: boolean) => {
+      setOperationPending("channels", isPending, "Updating channels…");
+    },
+  });
+  const canvasOperationLabels: readonly string[] =
+    Object.values(canvasOperations);
+  const canvasProcessingLabel: string =
+    canvasOperationLabels[canvasOperationLabels.length - 1] ??
+    "Processing image…";
 
-  function handleCanvasPick(event: MouseEvent, canvas: HTMLCanvasElement): void {
+  function handleCanvasPick(
+    event: MouseEvent,
+    canvas: HTMLCanvasElement
+  ): void {
     // Пипетка работает только в активном режиме, поэтому обычные клики по canvas
     // не создают побочных эффектов для остальных инструментов редактора.
-    if (!isColorPickerActive || displayedImageData === null) {
+    if (!isColorPickerActive || image === null) {
       return;
     }
 
     // Координаты переводятся из CSS-пространства canvas в реальные координаты ImageData.
     // Это важно при масштабировании изображения через displayScalePercent.
-    const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(event, canvas);
+    const coordinates: ImageCoordinates | null = getCanvasImageCoordinates(
+      event,
+      canvas
+    );
 
     if (coordinates === null) {
       return;
     }
 
-    setColorPickerResult(pickPixelColor(displayedImageData, coordinates, "displayed"));
+    // Пипетка читает исходные пиксели image.imageData, а не displayedImageData:
+    // скрытый в панели канал не должен занулять значение, которое возвращает пипетка.
+    setColorPickerResult(pickPixelColor(image.imageData, coordinates));
   }
 
   return (
@@ -346,7 +411,10 @@ export function ImageEditorPage(): JSX.Element {
             onChannelsChange={setChannels}
             sourceImageData={image?.imageData ?? null}
           />
-          <ColorPickerInfo isPickerActive={isColorPickerActive} result={colorPickerResult} />
+          <ColorPickerInfo
+            isPickerActive={isColorPickerActive}
+            result={colorPickerResult}
+          />
         </aside>
 
         {upload.isDragActive && image !== null ? (
@@ -356,7 +424,10 @@ export function ImageEditorPage(): JSX.Element {
         ) : null}
       </main>
 
-      <ImageStatusBar displayScalePercent={displayScalePercent} metadata={image?.metadata ?? null} />
+      <ImageStatusBar
+        displayScalePercent={displayScalePercent}
+        metadata={image?.metadata ?? null}
+      />
 
       {/* Dialogs монтируются только в открытом состоянии: их preview-эффекты не должны
           считать изображение и перезаписывать canvas, пока инструмент не вызван. */}

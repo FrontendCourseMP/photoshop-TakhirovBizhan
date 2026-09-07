@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createRafPreviewScheduler, type RafPreviewScheduler } from '../../../shared/performance/rafScheduler'
-import { applyLevelsInWorker } from '../../image-processing-worker/workerClient'
+import { preparePreviewSource, previewLevelsInWorker } from '../../image-processing-worker/workerClient'
 import type { LevelsState } from '../types'
 
 interface UseLevelsPreviewOptions {
@@ -9,11 +9,6 @@ interface UseLevelsPreviewOptions {
   readonly previewEnabled: boolean
   readonly onPreviewChange: (preview: ImageData | null) => void
   readonly onPreviewPendingChange?: (isPending: boolean) => void
-}
-
-interface PreviewRequest {
-  readonly sourceImageData: ImageData
-  readonly levelsState: LevelsState
 }
 
 /**
@@ -33,8 +28,8 @@ export function useLevelsPreview({
   const schedulerRef = useRef<RafPreviewScheduler | null>(null)
   // Ссылки переживают перезапуск effect, поэтому по ним видно, актуален ли пришедший
   // результат и не считает ли Worker в этот момент предыдущий кадр.
-  const requestedRef = useRef<PreviewRequest | null>(null)
-  const dispatchedRef = useRef<PreviewRequest | null>(null)
+  const requestedRef = useRef<LevelsState | null>(null)
+  const dispatchedRef = useRef<LevelsState | null>(null)
   const isWorkerBusyRef = useRef<boolean>(false)
   const isPreviewActiveRef = useRef<boolean>(false)
 
@@ -46,32 +41,35 @@ export function useLevelsPreview({
     const scheduler: RafPreviewScheduler = schedulerRef.current ?? createRafPreviewScheduler()
     schedulerRef.current = scheduler
     isPreviewActiveRef.current = previewEnabled
-    requestedRef.current = { sourceImageData, levelsState }
+    requestedRef.current = levelsState
 
     function startPreviewTask(): void {
-      const request: PreviewRequest | null = requestedRef.current
+      const request: LevelsState | null = requestedRef.current
 
       // Пока Worker считает предыдущий кадр, новая задача не ставится в очередь: свежие настройки
       // подхватит continuation после ответа. Иначе на большом изображении canvas отставал бы
       // от ползунка на всю накопленную очередь, а не на один кадр.
-      if (request === null || isWorkerBusyRef.current || isSameRequest(request, dispatchedRef.current)) {
+      if (request === null || isWorkerBusyRef.current || request === dispatchedRef.current) {
         return
       }
 
       isWorkerBusyRef.current = true
       dispatchedRef.current = request
 
-      void applyLevelsInWorker(request.sourceImageData, request.levelsState)
+      // sourceImageData передается в Worker один раз на сессию (см. preparePreviewSource),
+      // а не на каждый кадр перетаскивания: сам исходник во время драга не меняется.
+      void preparePreviewSource(sourceImageData)
+        .then((): Promise<ImageData> => previewLevelsInWorker(request))
         .then((preview: ImageData): void => {
           // Устаревший ответ отбрасывается: пользователь уже сдвинул маркер
           // или выключил preview, пока Worker считал кадр.
-          if (isPreviewActiveRef.current && isSameRequest(request, requestedRef.current)) {
+          if (isPreviewActiveRef.current && request === requestedRef.current) {
             onPreviewChange(preview)
             onPreviewPendingChange?.(false)
           }
         })
         .catch((): void => {
-          if (isPreviewActiveRef.current && isSameRequest(request, requestedRef.current)) {
+          if (isPreviewActiveRef.current && request === requestedRef.current) {
             onPreviewChange(null)
             onPreviewPendingChange?.(false)
           }
@@ -109,13 +107,4 @@ export function useLevelsPreview({
       scheduler.cancelPreviewUpdate()
     }
   }, [levelsState, onPreviewChange, onPreviewPendingChange, previewEnabled, sourceImageData])
-}
-
-function isSameRequest(request: PreviewRequest, other: PreviewRequest | null): boolean {
-  // Сравнение по ссылкам достаточно: и ImageData, и LevelsState пересобираются иммутабельно.
-  return (
-    other !== null &&
-    other.sourceImageData === request.sourceImageData &&
-    other.levelsState === request.levelsState
-  )
 }

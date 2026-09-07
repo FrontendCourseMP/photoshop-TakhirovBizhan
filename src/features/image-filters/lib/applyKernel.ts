@@ -1,6 +1,6 @@
 import { clamp } from '../../../shared/lib/math/clamp'
 import type { FilterChannel, FilterSettings } from '../types'
-import { getPixelWithEdgeHandling, type PixelTuple } from './edgeHandling'
+import { readSample, resolveSampleOffset } from './edgeHandling'
 
 const CHANNEL_TO_OFFSET: Readonly<Record<FilterChannel, number>> = {
   red: 0,
@@ -8,6 +8,8 @@ const CHANNEL_TO_OFFSET: Readonly<Record<FilterChannel, number>> = {
   blue: 2,
   alpha: 3,
 }
+
+const TAPS_PER_KERNEL = 9
 
 /**
  * Применяет свертку 3x3 к выбранным каналам и возвращает новый ImageData.
@@ -22,10 +24,15 @@ export function applyKernel3x3(source: ImageData, settings: FilterSettings): Ima
   )
   const divisor: number = normalizeDivisor(settings.divisor)
   const offset: number = settings.offset ?? 0
+  // Один переиспользуемый scratch-буфер на весь проход: соседей резолвим один раз на пиксель,
+  // а не по разу на каждый канал, и не аллоцируем новый массив на каждый пиксель.
+  const tapOffsets: Int32Array = new Int32Array(TAPS_PER_KERNEL)
 
   for (let y = 0; y < source.height; y += 1) {
     for (let x = 0; x < source.width; x += 1) {
       const targetIndex: number = (y * source.width + x) * 4
+
+      resolveTapOffsets(tapOffsets, source.width, source.height, x, y, settings.edgeHandling)
 
       for (let channelOffset = 0; channelOffset < 4; channelOffset += 1) {
         if (!selectedOffsets.has(channelOffset)) {
@@ -33,7 +40,14 @@ export function applyKernel3x3(source: ImageData, settings: FilterSettings): Ima
           continue
         }
 
-        outputData[targetIndex + channelOffset] = calculateConvolvedChannel(source, settings, x, y, channelOffset, divisor, offset)
+        outputData[targetIndex + channelOffset] = calculateConvolvedChannel(
+          source.data,
+          settings,
+          tapOffsets,
+          channelOffset,
+          divisor,
+          offset,
+        )
       }
     }
   }
@@ -41,34 +55,36 @@ export function applyKernel3x3(source: ImageData, settings: FilterSettings): Ima
   return new ImageData(outputData, source.width, source.height)
 }
 
-function calculateConvolvedChannel(
-  source: ImageData,
-  settings: FilterSettings,
+function resolveTapOffsets(
+  tapOffsets: Int32Array,
+  width: number,
+  height: number,
   x: number,
   y: number,
+  edgeHandling: FilterSettings['edgeHandling'],
+): void {
+  let tap = 0
+
+  for (let kernelY = -1; kernelY <= 1; kernelY += 1) {
+    for (let kernelX = -1; kernelX <= 1; kernelX += 1) {
+      tapOffsets[tap] = resolveSampleOffset(width, height, x + kernelX, y + kernelY, edgeHandling)
+      tap += 1
+    }
+  }
+}
+
+function calculateConvolvedChannel(
+  data: Uint8ClampedArray,
+  settings: FilterSettings,
+  tapOffsets: Int32Array,
   channelOffset: number,
   divisor: number,
   offset: number,
 ): number {
   let sum = 0
-  let kernelIndex = 0
 
-  // Ядро 3x3 обходится вокруг текущего пикселя. Для координат за границами изображения
-  // используется выбранная strategy edge handling, чтобы результат сохранил исходные width/height.
-  for (let kernelY = -1; kernelY <= 1; kernelY += 1) {
-    for (let kernelX = -1; kernelX <= 1; kernelX += 1) {
-      const pixel: PixelTuple = getPixelWithEdgeHandling(
-        source.data,
-        source.width,
-        source.height,
-        x + kernelX,
-        y + kernelY,
-        settings.edgeHandling,
-      )
-
-      sum += settings.kernel[kernelIndex] * pixel[channelOffset]
-      kernelIndex += 1
-    }
+  for (let tap = 0; tap < TAPS_PER_KERNEL; tap += 1) {
+    sum += settings.kernel[tap] * readSample(data, tapOffsets[tap], channelOffset)
   }
 
   return Math.round(clamp(sum / divisor + offset, 0, 255))

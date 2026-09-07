@@ -176,10 +176,14 @@ export function FiltersDialog({
           }}
         />
 
-        <OperationLoader
-          active={isProcessing || isApplying}
-          label={isApplying ? 'Applying filter…' : 'Updating preview…'}
-        />
+        {/* Обертка держит высоту всегда, даже когда OperationLoader размонтирован (active=false) -
+            иначе чекбокс и кнопки ниже сдвигались бы при каждом пересчете preview. */}
+        <div className="filters__status">
+          <OperationLoader
+            active={isProcessing || isApplying}
+            label={isApplying ? 'Applying filter…' : 'Updating preview…'}
+          />
+        </div>
 
         <footer className="dialog__footer">
           <label className="checkbox">

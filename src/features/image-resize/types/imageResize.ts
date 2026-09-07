@@ -15,7 +15,9 @@ export interface InterpolationAlgorithm {
 }
 
 export interface ResizeSettings {
-  // Settings отражают только пользовательский ввод; итоговый targetSize считается отдельно.
+  // width/height всегда хранятся в пикселях, независимо от inputMode: режим влияет только
+  // на то, что показывает и парсит поле ввода (см. getDisplayDimensionValue/parseDisplayDimensionValue).
+  // Так переключение Pixels/Percent не сбрасывает уже введенный размер.
   readonly inputMode: ResizeInputMode
   readonly width: number
   readonly height: number

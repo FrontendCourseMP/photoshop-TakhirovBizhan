@@ -1,6 +1,5 @@
 import { calculateHistogram } from '../histogram/lib/calculateHistogram'
-import { createChannelPreviews } from '../image-channels/lib/imageChannels'
-import { fitImageDataToBox } from '../image-channels/lib/previewScale'
+import { applyChannelsToImageData } from '../image-channels/lib/imageChannels'
 import { applyKernel3x3 } from '../image-filters/lib/applyKernel'
 import { applyLevels } from '../image-levels/lib/applyLevels'
 import { resizeImage } from '../image-resize/lib/resizeAlgorithms'
@@ -20,6 +19,11 @@ interface ImageProcessingWorkerGlobalScope {
 
 const workerScope: ImageProcessingWorkerGlobalScope = self as unknown as ImageProcessingWorkerGlobalScope
 
+// Кадр для live-preview (Levels/Filters): сохраняется один раз через PREPARE_PREVIEW_SOURCE,
+// а PREVIEW_LEVELS/PREVIEW_3X3_FILTER на каждый кадр перетаскивания используют уже его,
+// не пересылая исходник заново из main thread.
+let cachedPreviewSource: ImageData | null = null
+
 workerScope.addEventListener('message', (event: MessageEvent<ImageProcessingWorkerRequest>): void => {
   const request: ImageProcessingWorkerRequest = event.data
 
@@ -32,7 +36,7 @@ workerScope.addEventListener('message', (event: MessageEvent<ImageProcessingWork
     }
 
     // Worker возвращает ownership больших ArrayBuffer обратно в main thread.
-    // Это уменьшает лишнее копирование при передаче ImageData, histogram и preview-данных.
+    // Это уменьшает лишнее копирование при передаче ImageData и histogram-данных.
     workerScope.postMessage(response, collectTransferables(result))
   } catch (cause: unknown) {
     const response: ImageProcessingWorkerResponse = {
@@ -62,9 +66,30 @@ function runImageProcessingTask(request: ImageProcessingWorkerRequest): ImagePro
     return calculateHistogram(request.source, request.channel)
   }
 
-  // Превью строятся из уменьшенной копии, поэтому в main thread уходят миниатюры,
-  // а не полноразмерные ImageData.
-  return createChannelPreviews(fitImageDataToBox(request.source, request.maxPreviewSide), request.kinds)
+  if (request.type === 'APPLY_CHANNELS') {
+    return applyChannelsToImageData(request.source, request.channels, request.hasAlphaChannel)
+  }
+
+  if (request.type === 'PREPARE_PREVIEW_SOURCE') {
+    cachedPreviewSource = request.source
+    return { prepared: true }
+  }
+
+  if (request.type === 'PREVIEW_LEVELS') {
+    return applyLevels(requireCachedPreviewSource(), request.levelsState)
+  }
+
+  return applyKernel3x3(requireCachedPreviewSource(), request.settings)
+}
+
+function requireCachedPreviewSource(): ImageData {
+  // PREPARE_PREVIEW_SOURCE всегда отправляется раньше первого PREVIEW_* для той же сессии,
+  // порядок сообщений одного Worker не может перемешаться - null здесь означает ошибку клиента.
+  if (cachedPreviewSource === null) {
+    throw new Error('Preview source is not prepared yet.')
+  }
+
+  return cachedPreviewSource
 }
 
 function collectTransferables(result: ImageProcessingWorkerResult): Transferable[] {
@@ -76,7 +101,8 @@ function collectTransferables(result: ImageProcessingWorkerResult): Transferable
     return [result.buffer]
   }
 
-  return result.map((preview): Transferable => getImageDataBuffer(preview.imageData))
+  // PreparePreviewSourceAck не содержит пикселей - передавать в transfer list нечего.
+  return []
 }
 
 function getImageDataBuffer(imageData: ImageData): ArrayBuffer {

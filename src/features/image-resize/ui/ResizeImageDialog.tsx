@@ -8,7 +8,9 @@ import type { ImageSize } from '../../../shared/types/imageSize'
 import {
   calculateAspectRatioSize,
   calculateResizeStats,
+  getDisplayDimensionValue,
   getTargetSizeFromSettings,
+  parseDisplayDimensionValue,
   validateResizeSettings,
 } from '../lib/resizeValidation'
 import { resizeImageInWorker } from '../../image-processing-worker/workerClient'
@@ -47,15 +49,15 @@ export function ResizeImageDialog({
   })
   const [isApplying, setIsApplying] = useState<boolean>(false)
   const targetSize: ImageSize = useMemo((): ImageSize => {
-    // Target size является производным значением: при percent mode он вычисляется
-    // из исходного размера, а при pixels mode берется из полей ввода.
-    return getTargetSizeFromSettings(settings, sourceSize)
-  }, [settings, sourceSize])
+    // settings.width/height уже в пикселях независимо от inputMode, поэтому target
+    // это просто округленный и защищенный от нуля settings.
+    return getTargetSizeFromSettings(settings)
+  }, [settings])
   const validation: ResizeValidationResult = useMemo((): ResizeValidationResult => {
     // Validation выполняется до тяжелого resize, чтобы некорректные размеры
     // не создавали большие массивы пикселей и не блокировали UI.
-    return validateResizeSettings(settings, sourceSize)
-  }, [settings, sourceSize])
+    return validateResizeSettings(settings)
+  }, [settings])
   const stats: ResizeStats = useMemo((): ResizeStats => {
     // Статистика показывает пользователю масштаб изменения до применения операции.
     return calculateResizeStats(sourceSize, targetSize)
@@ -75,41 +77,33 @@ export function ResizeImageDialog({
   }
 
   function handleInputModeChange(event: ChangeEvent<HTMLSelectElement>): void {
-    // При смене режима значения сбрасываются в нейтральные для режима:
-    // 100% для percent и исходный размер для pixels.
+    // width/height не трогаем: они уже хранятся в пикселях, режим влияет только на то,
+    // что показывают поля ввода. Иначе переключение Pixels/Percent стирало бы введенный размер.
     const inputMode = event.currentTarget.value === 'percent' ? 'percent' : 'pixels'
 
     setSettings({
       ...settings,
       inputMode,
-      width: inputMode === 'percent' ? 100 : sourceSize.width,
-      height: inputMode === 'percent' ? 100 : sourceSize.height,
     })
   }
 
-  function handleWidthChange(value: number): void {
+  function handleWidthChange(displayValue: number): void {
+    // Поле могло показывать проценты - сначала переводим введенное число в пиксели,
+    // потому что settings.width хранится только в пикселях.
+    const pixelValue: number = parseDisplayDimensionValue(displayValue, 'width', settings.inputMode, sourceSize)
+
     if (!settings.keepAspectRatio) {
       // Без сохранения пропорций ширина и высота редактируются независимо.
       setSettings({
         ...settings,
-        width: value,
+        width: pixelValue,
       })
       return
     }
 
-    if (settings.inputMode === 'percent') {
-      // В percent mode одинаковый процент по обеим осям сохраняет aspect ratio без пересчета.
-      setSettings({
-        ...settings,
-        width: value,
-        height: value,
-      })
-      return
-    }
-
-    // В pixels mode связанный размер считается от исходного aspect ratio,
+    // Связанный размер считается от исходного aspect ratio, а не от текущего target,
     // чтобы последовательные правки не накапливали ошибку округления.
-    const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'width', value)
+    const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'width', pixelValue)
     setSettings({
       ...settings,
       width: nextSize.width,
@@ -117,29 +111,21 @@ export function ResizeImageDialog({
     })
   }
 
-  function handleHeightChange(value: number): void {
+  function handleHeightChange(displayValue: number): void {
+    const pixelValue: number = parseDisplayDimensionValue(displayValue, 'height', settings.inputMode, sourceSize)
+
     if (!settings.keepAspectRatio) {
       // Если пользователь отключил aspect ratio, высота меняется без влияния на ширину.
       setSettings({
         ...settings,
-        height: value,
-      })
-      return
-    }
-
-    if (settings.inputMode === 'percent') {
-      // Процентный resize с сохранением пропорций использует одно значение для width/height.
-      setSettings({
-        ...settings,
-        width: value,
-        height: value,
+        height: pixelValue,
       })
       return
     }
 
     // Пересчет ширины от высоты использует исходные размеры, а не текущий target,
     // чтобы результат был предсказуемым после нескольких изменений.
-    const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'height', value)
+    const nextSize: ImageSize = calculateAspectRatioSize(sourceSize, 'height', pixelValue)
     setSettings({
       ...settings,
       width: nextSize.width,
@@ -206,7 +192,7 @@ export function ResizeImageDialog({
         <div className="size-fields">
           <ResizeNumberField
             label={`Width, ${unitLabel}`}
-            value={settings.width}
+            value={getDisplayDimensionValue(settings.width, 'width', settings.inputMode, sourceSize)}
             onChange={handleWidthChange}
           />
           {/* Скоба между полями только показывает состояние связи: переключает ее checkbox ниже. */}
@@ -220,7 +206,7 @@ export function ResizeImageDialog({
           </span>
           <ResizeNumberField
             label={`Height, ${unitLabel}`}
-            value={settings.height}
+            value={getDisplayDimensionValue(settings.height, 'height', settings.inputMode, sourceSize)}
             onChange={handleHeightChange}
           />
         </div>

@@ -1,5 +1,5 @@
 import type { HistogramChannel, HistogramData } from '../histogram/types'
-import type { ChannelPreviewImage, ChannelPreviewKind } from '../image-channels/types'
+import type { ChannelsState } from '../image-channels/types'
 import type { FilterSettings } from '../image-filters/types'
 import type { LevelsState } from '../image-levels/types'
 import type { InterpolationMethod } from '../image-resize/types'
@@ -86,23 +86,67 @@ export function calculateHistogramInWorker(source: ImageData, channel: Histogram
   ).then(assertHistogramResult)
 }
 
-export function createChannelPreviewsInWorker(
+export function applyChannelsInWorker(
   source: ImageData,
-  maxPreviewSide: number,
-  kinds: readonly ChannelPreviewKind[],
-): Promise<readonly ChannelPreviewImage[]> {
+  channels: ChannelsState,
+  hasAlphaChannel: boolean,
+): Promise<ImageData> {
   const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
 
   return runWorkerTask(
     {
       taskId: createTaskId(),
-      type: 'BUILD_CHANNEL_PREVIEWS',
+      type: 'APPLY_CHANNELS',
       source: preparedSource.imageData,
-      maxPreviewSide,
-      kinds,
+      channels,
+      hasAlphaChannel,
     },
     preparedSource.transfer,
-  ).then(assertChannelPreviewsResult)
+  ).then(assertImageDataResult)
+}
+
+// previewSourceRef - последний исходник, для которого сессия live-preview уже подготовлена в Worker.
+// Сверка по ссылке (а не по значению) достаточна: image.imageData заменяется только целиком.
+let previewSourceRef: ImageData | null = null
+let previewSourceReady: Promise<void> | null = null
+
+/**
+ * Готовит кадр для последующих previewLevelsInWorker/previewKernel3x3InWorker.
+ * Повторный вызов с тем же source ничего не пересылает - именно это убирает лишнее
+ * клонирование и transfer полного изображения на каждый кадр перетаскивания маркера.
+ */
+export function preparePreviewSource(source: ImageData): Promise<void> {
+  if (previewSourceRef === source && previewSourceReady !== null) {
+    return previewSourceReady
+  }
+
+  previewSourceRef = source
+
+  const preparedSource: PreparedImageData = prepareImageDataForWorker(source)
+  const ready: Promise<void> = runWorkerTask(
+    {
+      taskId: createTaskId(),
+      type: 'PREPARE_PREVIEW_SOURCE',
+      source: preparedSource.imageData,
+    },
+    preparedSource.transfer,
+  ).then((): void => undefined)
+
+  previewSourceReady = ready
+
+  return ready
+}
+
+export function previewLevelsInWorker(levelsState: LevelsState): Promise<ImageData> {
+  return runWorkerTask({ taskId: createTaskId(), type: 'PREVIEW_LEVELS', levelsState }, []).then(
+    assertImageDataResult,
+  )
+}
+
+export function previewKernel3x3InWorker(settings: FilterSettings): Promise<ImageData> {
+  return runWorkerTask({ taskId: createTaskId(), type: 'PREVIEW_3X3_FILTER', settings }, []).then(
+    assertImageDataResult,
+  )
 }
 
 function runWorkerTask(
@@ -165,6 +209,10 @@ function handleWorkerError(event: ErrorEvent): void {
   pendingTasks.clear()
   workerInstance?.terminate()
   workerInstance = null
+  // Новый Worker ничего не помнит про старую preview-сессию - следующий кадр должен
+  // подготовить исходник заново, а не решить, что он уже закэширован.
+  previewSourceRef = null
+  previewSourceReady = null
 }
 
 function prepareImageDataForWorker(source: ImageData): PreparedImageData {
@@ -199,12 +247,4 @@ function assertHistogramResult(result: ImageProcessingWorkerResult): HistogramDa
   }
 
   throw new Error('Worker returned an unexpected histogram result.')
-}
-
-function assertChannelPreviewsResult(result: ImageProcessingWorkerResult): readonly ChannelPreviewImage[] {
-  if (Array.isArray(result)) {
-    return result
-  }
-
-  throw new Error('Worker returned an unexpected channel previews result.')
 }

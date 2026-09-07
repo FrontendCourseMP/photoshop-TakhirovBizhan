@@ -1,9 +1,9 @@
 import type { ImageSize } from '../../../shared/types/imageSize'
 import { MAX_IMAGE_SIZE } from '../model/resizeConstants'
-import type { ResizeSettings, ResizeStats, ResizeValidationResult } from '../types'
+import type { ResizeInputMode, ResizeSettings, ResizeStats, ResizeValidationResult } from '../types'
 
-export function validateResizeSettings(settings: ResizeSettings, sourceSize: ImageSize): ResizeValidationResult {
-  const targetSize: ImageSize = getTargetSizeFromSettings(settings, sourceSize)
+export function validateResizeSettings(settings: ResizeSettings): ResizeValidationResult {
+  const targetSize: ImageSize = getTargetSizeFromSettings(settings)
 
   // Валидация выполняется до запуска тяжелого resize, чтобы Apply не создавал огромные или невалидные буферы.
   if (!isValidFiniteNumber(settings.width) || !isValidFiniteNumber(settings.height)) {
@@ -33,19 +33,51 @@ export function validateResizeSettings(settings: ResizeSettings, sourceSize: Ima
   }
 }
 
-export function getTargetSizeFromSettings(settings: ResizeSettings, sourceSize: ImageSize): ImageSize {
-  // Алгоритмы resize работают в пикселях, поэтому percent-режим сначала переводится в итоговый ImageSize.
-  if (settings.inputMode === 'percent') {
-    return {
-      width: Math.max(Math.round((sourceSize.width * settings.width) / 100), 1),
-      height: Math.max(Math.round((sourceSize.height * settings.height) / 100), 1),
-    }
-  }
-
+export function getTargetSizeFromSettings(settings: ResizeSettings): ImageSize {
+  // settings.width/height уже хранятся в пикселях независимо от inputMode (см. ResizeSettings),
+  //  здесь остается только округление и защита от нулевого/отрицательного размера.
   return {
     width: Math.max(Math.round(settings.width), 1),
     height: Math.max(Math.round(settings.height), 1),
   }
+}
+
+/**
+ * Переводит хранящийся в пикселях размер в число, которое должно показывать поле ввода:
+ * сами пиксели для режима pixels или процент от исходной стороны для режима percent.
+ */
+export function getDisplayDimensionValue(
+  pixels: number,
+  dimension: 'width' | 'height',
+  inputMode: ResizeInputMode,
+  sourceSize: ImageSize,
+): number {
+  if (inputMode === 'pixels') {
+    return pixels
+  }
+
+  const sourceDimension: number = dimension === 'width' ? sourceSize.width : sourceSize.height
+
+  return Math.round((pixels / sourceDimension) * 100)
+}
+
+/**
+ * Обратное преобразование: то, что ввел пользователь в поле (пиксели или проценты),
+ * переводится в пиксели, потому что settings.width/height хранятся только в пикселях.
+ */
+export function parseDisplayDimensionValue(
+  displayValue: number,
+  dimension: 'width' | 'height',
+  inputMode: ResizeInputMode,
+  sourceSize: ImageSize,
+): number {
+  if (inputMode === 'pixels') {
+    return displayValue
+  }
+
+  const sourceDimension: number = dimension === 'width' ? sourceSize.width : sourceSize.height
+
+  return (sourceDimension * displayValue) / 100
 }
 
 export function calculateAspectRatioSize(

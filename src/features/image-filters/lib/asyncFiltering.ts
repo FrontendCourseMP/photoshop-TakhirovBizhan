@@ -1,5 +1,5 @@
 import type { AsyncFilterTask, FilterSettings } from '../types'
-import { applyKernel3x3InWorker } from '../../image-processing-worker/workerClient'
+import { preparePreviewSource, previewKernel3x3InWorker } from '../../image-processing-worker/workerClient'
 
 export function scheduleAsyncFilter(
   source: ImageData,
@@ -13,9 +13,11 @@ export function scheduleAsyncFilter(
       return
     }
 
-    // Обработка вынесена в Worker: основной поток только отправляет задачу и применяет результат.
-    // Флаг cancelled не дает устаревшему preview перезаписать более свежий результат.
-    void applyKernel3x3InWorker(source, settings)
+    // Обработка вынесена в Worker, а флаг cancelled не дает устаревшему preview перезаписать
+    // более свежий результат. source передается в Worker один раз на сессию (см. preparePreviewSource),
+    // а не на каждое изменение kernel/divisor/offset: сам исходник, пока диалог открыт, не меняется.
+    void preparePreviewSource(source)
+      .then((): Promise<ImageData> => previewKernel3x3InWorker(settings))
       .then((result: ImageData): void => {
         if (!cancelled) {
           onComplete(result)

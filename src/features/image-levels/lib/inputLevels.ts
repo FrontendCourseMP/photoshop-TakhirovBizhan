@@ -12,8 +12,9 @@ export const MAX_INPUT_LEVEL = 255
 const MIDTONE_OUTPUT = 0.5
 
 export function gammaToMidtoneRatio(gamma: number): number {
-  // Из normalized ** gamma === 0.5 следует, что доля диапазона равна 0.5 ** (1 / gamma).
-  return MIDTONE_OUTPUT ** (1 / clamp(gamma, GAMMA_RANGE.min, GAMMA_RANGE.max))
+  // Из normalized ** (1/gamma) === 0.5 (формула LUT) следует, что доля диапазона
+  // равна 0.5 ** gamma - иначе маркер не совпадет с реальным результатом LUT.
+  return MIDTONE_OUTPUT ** clamp(gamma, GAMMA_RANGE.min, GAMMA_RANGE.max)
 }
 
 // Границы хода полутонового маркера задаются самим диапазоном гаммы, а не отдельными числами:
@@ -83,7 +84,9 @@ export function levelToPercent(level: number): number {
 function levelToGamma(settings: LevelsSettings, level: number): number {
   const range: number = Math.max(settings.whitePoint - settings.blackPoint, 1)
   const ratio: number = clamp((level - settings.blackPoint) / range, MIN_MIDTONE_RATIO, MAX_MIDTONE_RATIO)
-  const gamma: number = Math.log(MIDTONE_OUTPUT) / Math.log(ratio)
+  // Обратная функция к gammaToMidtoneRatio (ratio = MIDTONE_OUTPUT ** gamma), поэтому здесь
+  // числитель и знаменатель логарифма меняются местами относительно той функции.
+  const gamma: number = Math.log(ratio) / Math.log(MIDTONE_OUTPUT)
 
   // Два знака после запятой держат подпись маркера читаемой и совпадают с шагом ручного ввода.
   return clamp(Math.round(gamma * 100) / 100, GAMMA_RANGE.min, GAMMA_RANGE.max)
